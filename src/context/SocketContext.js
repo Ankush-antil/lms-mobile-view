@@ -455,7 +455,7 @@ export const SocketProvider = ({ children }) => {
                             ref={webViewRef}
                             key={`webview-${callInfo.callLogId || 'default'}`}
                             source={{
-                                uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=false&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&config.disableDeepLinking=true&interfaceConfig.TOOLBAR_BUTTONS=[]`
+                                uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=false&config.startWithAudioMuted=false&config.prejoinConfig.enabled=false&config.prejoinPageEnabled=false&config.disableDeepLinking=true`
                             }}
                             style={styles.videoWebView}
                             mediaPlaybackRequiresUserAction={false}
@@ -505,7 +505,7 @@ export const SocketProvider = ({ children }) => {
                                     ref={webViewRef}
                                     key={`webview-${callInfo.callLogId || 'default'}`}
                                     source={{
-                                        uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=true&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&config.disableDeepLinking=true&interfaceConfig.TOOLBAR_BUTTONS=[]`
+                                        uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=true&config.startWithAudioMuted=false&config.prejoinConfig.enabled=false&config.prejoinPageEnabled=false&config.disableDeepLinking=true`
                                     }}
                                     style={styles.hiddenWebView}
                                     mediaPlaybackRequiresUserAction={false}
