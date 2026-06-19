@@ -29,28 +29,25 @@ const getTests = asyncHandler(async (req, res) => {
     const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     let query = {};
 
-    // 1. MUST match Institute (case-insensitive, flexible whitespace)
+    // 1. MUST match Institute (case-insensitive)
     query.institute = { $regex: new RegExp(`^\\s*${escapeRegex(studentInstitute)}\\s*$`, 'i') };
 
-    // 2. MUST match at least one Subject from student's comma-separated list
-    if (studentSubject) {
+    // 2. Subject matching: Only restrict if the student has specific subjects assigned
+    if (studentSubject && studentSubject.trim() !== '') {
         const subjects = studentSubject.split(',').map(s => s.trim()).filter(Boolean);
         if (subjects.length > 0) {
             query.subject = {
                 $in: subjects.map(sub => new RegExp(`^\\s*${escapeRegex(sub)}\\s*$`, 'i'))
             };
-        } else {
-            query.subject = { $in: [null, '', undefined] };
         }
-    } else {
-        query.subject = { $in: [null, '', undefined] };
     }
 
-    // 3. IF the student has a course AND the test has a course name, they should match
-    // If the test has NO course name, it's visible to any course in that institute/subject.
+    // 3. Course matching:
+    // If student has a course assigned, show tests for that course or tests with no course.
+    // If student has NO course assigned, do not restrict by course (allows seeing all tests in their institute).
     if (studentCourse) {
         query.$or = [
-            { course: { $in: [null, '', undefined] } },
+            { course: { $in: [null, '', undefined, 'Public Access'] } },
             { course: { $regex: new RegExp(`^\\s*${escapeRegex(studentCourse)}\\s*$`, 'i') } }
         ];
     }
