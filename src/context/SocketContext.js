@@ -7,7 +7,8 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Vibration,
-    Platform
+    Platform,
+    PermissionsAndroid
 } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
@@ -42,6 +43,39 @@ export const SocketProvider = ({ children }) => {
     const vibrationIntervalRef = useRef(null);
     const soundRef = useRef(null);
 
+    // Request Camera & Audio Permissions for WebRTC inside WebView on Android/iOS
+    const requestCallPermissions = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const granted = await PermissionsAndroid.requestMultiple([
+                    PermissionsAndroid.PERMISSIONS.CAMERA,
+                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+                ]);
+                console.log('[PERMISSIONS] Android call permissions status:', granted);
+                
+                if (
+                    granted[PermissionsAndroid.PERMISSIONS.CAMERA] !== PermissionsAndroid.RESULTS.GRANTED ||
+                    granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] !== PermissionsAndroid.RESULTS.GRANTED
+                ) {
+                    Toast.show({
+                        type: 'info',
+                        text1: 'Permissions Needed',
+                        text2: 'Camera & Microphone access are required for voice/video call streaming.'
+                    });
+                }
+            } catch (err) {
+                console.log('[PERMISSIONS] Error requesting Android call permissions:', err);
+            }
+        } else {
+            try {
+                const { status } = await Audio.requestPermissionsAsync();
+                console.log('[PERMISSIONS] iOS Audio permission status:', status);
+            } catch (err) {
+                console.log('[PERMISSIONS] Error requesting iOS call permissions:', err);
+            }
+        }
+    };
+
     // Audio Playback Helpers for Ringtone and Dialtone
     const playSound = async (type) => {
         try {
@@ -57,9 +91,10 @@ export const SocketProvider = ({ children }) => {
                 staysActiveInBackground: true,
             });
 
+            // Load audio from Render backend server statically
             const url = type === 'dialing' 
-                ? 'https://www.soundjay.com/phone/phone-calling-1.mp3' 
-                : 'https://www.soundjay.com/phone/telephone-ring-03a.mp3';
+                ? 'https://lms-mobile-view.onrender.com/uploads/dialing.mp3' 
+                : 'https://lms-mobile-view.onrender.com/uploads/ringtone.mp3';
 
             const { sound } = await Audio.Sound.createAsync(
                 { uri: url },
@@ -181,6 +216,9 @@ export const SocketProvider = ({ children }) => {
             registerUserSocket();
         });
 
+        // Request calling permissions immediately on app/socket mount
+        requestCallPermissions();
+
         s.on('online-status-update', (users) => {
             setOnlineUsers(users || []);
         });
@@ -281,6 +319,7 @@ export const SocketProvider = ({ children }) => {
         }
 
         console.log(`[CALL] Calling ${targetName} (ID: ${targetId}, Type: ${callType})`);
+        requestCallPermissions();
         setCallState('dialing');
         setCallInfo({
             targetId,
@@ -305,6 +344,7 @@ export const SocketProvider = ({ children }) => {
         if (!socketRef.current || !callInfo.targetId) return;
 
         console.log('[CALL] Accepting call from:', callInfo.targetId);
+        requestCallPermissions();
         stopVibration();
         stopSound();
         setCallState('connected');
@@ -378,6 +418,9 @@ export const SocketProvider = ({ children }) => {
                             domStorageEnabled={true}
                             originWhitelist={['*']}
                             userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+                            onPermissionRequest={(event) => {
+                                event.grant(event.resources);
+                            }}
                         />
                     ) : (
                         <View style={styles.topArea}>
@@ -420,6 +463,9 @@ export const SocketProvider = ({ children }) => {
                                     domStorageEnabled={true}
                                     originWhitelist={['*']}
                                     userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+                                    onPermissionRequest={(event) => {
+                                        event.grant(event.resources);
+                                    }}
                                 />
                             )}
                         </View>
