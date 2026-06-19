@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import Toast from 'react-native-toast-message';
 import { colors, spacing, fontSizes, borderRadius } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -109,12 +110,23 @@ export const SocketProvider = ({ children }) => {
             console.log('[SOCKET] Connection error:', error.message || error);
         });
 
+        const registerUserSocket = () => {
+            if (user?._id) {
+                console.log('[SOCKET] Registering user:', user._id);
+                s.emit('register', { userId: user._id, role: user.role, name: user.name });
+                s.emit('get-online-users', (users) => {
+                    setOnlineUsers(users || []);
+                });
+            }
+        };
+
+        if (s.connected) {
+            registerUserSocket();
+        }
+
         s.on('connect', () => {
             console.log('[SOCKET] Connected to Render socket server successfully.');
-            s.emit('register', { userId: user._id, role: user.role, name: user.name });
-            s.emit('get-online-users', (users) => {
-                setOnlineUsers(users || []);
-            });
+            registerUserSocket();
         });
 
         s.on('online-status-update', (users) => {
@@ -201,7 +213,18 @@ export const SocketProvider = ({ children }) => {
 
     // Call Actions
     const callUser = (targetId, targetName, targetRole, callType = 'audio') => {
-        if (!socketRef.current) return;
+        if (!socketRef.current || !socketRef.current.connected) {
+            console.log('[CALL] Socket not connected. Reconnecting...');
+            if (socketRef.current) {
+                socketRef.current.connect();
+            }
+            Toast.show({
+                type: 'error',
+                text1: 'Connection Offline',
+                text2: 'Server connection is offline. Reconnecting...'
+            });
+            return;
+        }
 
         console.log(`[CALL] Calling ${targetName} (ID: ${targetId}, Type: ${callType})`);
         setCallState('dialing');

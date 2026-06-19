@@ -50,11 +50,16 @@ const getTests = asyncHandler(async (req, res) => {
     // 3. Course matching:
     // If student has a course assigned, show tests for that course or tests with no course.
     // If student has NO course assigned, do not restrict by course (allows seeing all tests in their institute).
+    // Flexible word/prefix-based matching to support typos/variations (e.g., "Website devlopment" vs "Web Development Bootcamp")
     if (studentCourse) {
-        query.$or = [
-            { course: { $in: [null, '', undefined, 'Public Access'] } },
-            { course: { $regex: new RegExp(`^\\s*${escapeRegex(studentCourse)}\\s*$`, 'i') } }
-        ];
+        const courseWords = studentCourse.split(/\s+/).map(w => w.trim()).filter(w => w.length >= 3);
+        const coursePrefixes = courseWords.map(w => escapeRegex(w.substring(0, 3)));
+        if (coursePrefixes.length > 0) {
+            query.$or = [
+                { course: { $in: [null, '', undefined, 'Public Access'] } },
+                { course: { $regex: new RegExp(coursePrefixes.join('|'), 'i') } }
+            ];
+        }
     }
 
     console.log(`[Student-Tests-Query] Formulated Query:`, JSON.stringify(query));
