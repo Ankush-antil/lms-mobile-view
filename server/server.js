@@ -49,28 +49,16 @@ app.use('/api/submissions', require('./routes/submissionRoutes'));
 app.use('/api/public-tests', require('./routes/publicTestRoutes'));
 app.use('/api/calls', require('./routes/teacher/callRoutes'));
 
-// Serve static assets in production
-if (process.env.NODE_ENV === 'production') {
-    // Serve React static files
-    app.use(express.static(path.join(__dirname, '../client/dist')));
-
-    // Catch-all: only serve index.html for non-API routes
-    app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/api/')) {
-            return next(); // Let API 404 handler respond
-        }
-        res.sendFile(path.resolve(__dirname, '../client', 'dist', 'index.html'));
+// API-only server (Mobile App) — no static file serving
+app.get('/', (req, res) => {
+    const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
+    res.json({
+        message: 'LMS Mobile API is running ✅',
+        database: dbStatus,
+        version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development'
     });
-} else {
-    app.get('/', (req, res) => {
-        const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
-        res.json({
-            message: 'LMS API is running',
-            database: dbStatus,
-            version: '1.0.0'
-        });
-    });
-}
+});
 
 const http = require('http');
 const server = http.createServer(app);
