@@ -517,7 +517,7 @@ export const SocketProvider = ({ children }) => {
                             originWhitelist={['*']}
                             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                             mediaCapturePermissionGrantType="grant"
-                            injectedJavaScript={debugInjection}
+                            injectedJavaScriptBeforeContentLoaded={debugInjection}
                             onMessage={handleWebViewMessage}
                             onPermissionRequest={(event) => {
                                 event.grant(event.resources);
@@ -569,7 +569,7 @@ export const SocketProvider = ({ children }) => {
                                     originWhitelist={['*']}
                                     userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                                     mediaCapturePermissionGrantType="grant"
-                                    injectedJavaScript={debugInjection}
+                                    injectedJavaScriptBeforeContentLoaded={debugInjection}
                                     onMessage={handleWebViewMessage}
                                     onPermissionRequest={(event) => {
                                         event.grant(event.resources);
@@ -580,13 +580,17 @@ export const SocketProvider = ({ children }) => {
                     )}
 
                     {/* Collapsible Debug Panel */}
-                    {callState === 'connected' && debugLogs.length > 0 && (
+                    {callState === 'connected' && (
                         <View style={styles.debugPanel}>
                             <Text style={styles.debugTitle}>System Logs (Scroll to view):</Text>
                             <ScrollView style={styles.debugScroll} nestedScrollEnabled={true}>
-                                {debugLogs.map((log, idx) => (
-                                    <Text key={idx} style={styles.debugText}>{log}</Text>
-                                ))}
+                                {debugLogs.length === 0 ? (
+                                    <Text style={[styles.debugText, { color: '#eab308' }]}>Waiting for logs from Jitsi WebRTC room...</Text>
+                                ) : (
+                                    debugLogs.map((log, idx) => (
+                                        <Text key={idx} style={styles.debugText}>{log}</Text>
+                                    ))
+                                )}
                             </ScrollView>
                         </View>
                     )}
