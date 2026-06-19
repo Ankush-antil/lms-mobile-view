@@ -8,7 +8,8 @@ import {
     ActivityIndicator,
     Vibration,
     Platform,
-    PermissionsAndroid
+    PermissionsAndroid,
+    ScrollView
 } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
@@ -39,6 +40,7 @@ export const SocketProvider = ({ children }) => {
     const [callDuration, setCallDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isSpeaker, setIsSpeaker] = useState(true);
+    const [debugLogs, setDebugLogs] = useState([]);
 
     const socketRef = useRef(null);
     const timerRef = useRef(null);
@@ -166,6 +168,53 @@ export const SocketProvider = ({ children }) => {
         }
     };
 
+    const debugInjection = `
+        (function() {
+            var origLog = console.log;
+            var origError = console.error;
+            var origWarn = console.warn;
+            
+            console.log = function() {
+                var args = Array.prototype.slice.call(arguments);
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', message: args.join(' ') }));
+                origLog.apply(console, arguments);
+            };
+            
+            console.error = function() {
+                var args = Array.prototype.slice.call(arguments);
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', message: args.join(' ') }));
+                origError.apply(console, arguments);
+            };
+
+            console.warn = function() {
+                var args = Array.prototype.slice.call(arguments);
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'WARN', message: args.join(' ') }));
+                origWarn.apply(console, arguments);
+            };
+
+            window.onerror = function(message, source, lineno, colno, error) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                    type: 'ERROR', 
+                    message: message + ' at ' + (source || '').split('/').pop() + ':' + lineno 
+                }));
+                return false;
+            };
+            origLog('Logger bridge injected.');
+        })();
+        true;
+    `;
+
+    const handleWebViewMessage = (event) => {
+        try {
+            const data = JSON.parse(event.nativeEvent.data);
+            const formatted = `[${data.type}] ${data.message}`;
+            setDebugLogs(prev => [...prev.slice(-30), formatted]);
+            console.log('[JITSI WEBVIEW]', formatted);
+        } catch (e) {
+            console.log('[JITSI WEBVIEW RAW]', event.nativeEvent.data);
+        }
+    };
+
     // Dynamic Ringtone/Vibration for incoming calls
     const startVibration = () => {
         if (Platform.OS === 'android' || Platform.OS === 'ios') {
@@ -182,6 +231,7 @@ export const SocketProvider = ({ children }) => {
         stopSound();
         setIsMuted(false);
         setIsSpeaker(true);
+        setDebugLogs([]);
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -467,6 +517,8 @@ export const SocketProvider = ({ children }) => {
                             originWhitelist={['*']}
                             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                             mediaCapturePermissionGrantType="grant"
+                            injectedJavaScript={debugInjection}
+                            onMessage={handleWebViewMessage}
                             onPermissionRequest={(event) => {
                                 event.grant(event.resources);
                             }}
@@ -517,11 +569,25 @@ export const SocketProvider = ({ children }) => {
                                     originWhitelist={['*']}
                                     userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                                     mediaCapturePermissionGrantType="grant"
+                                    injectedJavaScript={debugInjection}
+                                    onMessage={handleWebViewMessage}
                                     onPermissionRequest={(event) => {
                                         event.grant(event.resources);
                                     }}
                                 />
                             )}
+                        </View>
+                    )}
+
+                    {/* Collapsible Debug Panel */}
+                    {callState === 'connected' && debugLogs.length > 0 && (
+                        <View style={styles.debugPanel}>
+                            <Text style={styles.debugTitle}>System Logs (Scroll to view):</Text>
+                            <ScrollView style={styles.debugScroll} nestedScrollEnabled={true}>
+                                {debugLogs.map((log, idx) => (
+                                    <Text key={idx} style={styles.debugText}>{log}</Text>
+                                ))}
+                            </ScrollView>
                         </View>
                     )}
 
@@ -671,6 +737,7 @@ const styles = StyleSheet.create({
     videoWebView: {
         width: '100%',
         height: '75%',
+        alignSelf: 'stretch',
         backgroundColor: '#0b141a',
     },
     hiddenWebView: {
@@ -678,7 +745,31 @@ const styles = StyleSheet.create({
         height: 1,
         opacity: 0.01,
         position: 'absolute',
-        left: -100,
-        top: -100,
+        bottom: 0,
+        right: 0,
+    },
+    debugPanel: {
+        width: '90%',
+        height: 120,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        borderRadius: borderRadius.md || 8,
+        padding: 8,
+        marginTop: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+    },
+    debugTitle: {
+        fontSize: 10,
+        color: '#10b981',
+        fontWeight: 'bold',
+        marginBottom: 4,
+    },
+    debugScroll: {
+        flex: 1,
+    },
+    debugText: {
+        fontSize: 9,
+        color: '#ffffff',
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     },
 });
