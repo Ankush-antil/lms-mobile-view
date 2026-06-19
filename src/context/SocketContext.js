@@ -97,14 +97,20 @@ export const SocketProvider = ({ children }) => {
 
         console.log('[SOCKET] Connecting to server with user:', user.name);
         const s = io('https://lms-mobile-view.onrender.com', {
-            transports: ['websocket', 'polling']
+            transports: ['websocket'],
+            forceNew: true,
+            autoConnect: true
         });
 
         socketRef.current = s;
         setSocket(s);
 
+        s.on('connect_error', (error) => {
+            console.log('[SOCKET] Connection error:', error.message || error);
+        });
+
         s.on('connect', () => {
-            console.log('[SOCKET] Connected to Render socket server.');
+            console.log('[SOCKET] Connected to Render socket server successfully.');
             s.emit('register', { userId: user._id, role: user.role, name: user.name });
             s.emit('get-online-users', (users) => {
                 setOnlineUsers(users || []);

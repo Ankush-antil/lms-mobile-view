@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { AppHeader, LoadingScreen, SectionCard } from '../../components/common/UIComponents';
+import { useSocket } from '../../context/SocketContext';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -256,6 +257,7 @@ const QuestionWrapper = ({ question, index, children, answer, onAnswer, onVoiceI
 // ─── TakeTestScreen Main ───────────────────────────────────────────────────────
 const TakeTestScreen = ({ route, navigation }) => {
     const { testId } = route.params;
+    const { callUser, endCall, callState } = useSocket();
     const [test, setTest] = useState(null);
     const [loading, setLoading] = useState(true);
     const [answers, setAnswers] = useState({});
@@ -266,6 +268,15 @@ const TakeTestScreen = ({ route, navigation }) => {
     // Simulated states for proctoring widgets
     const [activeCalling, setActiveCalling] = useState(null); // 'audio' or 'video'
     const [callConnected, setCallConnected] = useState(false);
+
+    useEffect(() => {
+        if (callState === 'connected') {
+            setCallConnected(true);
+        } else if (callState === 'idle') {
+            setCallConnected(false);
+            setActiveCalling(null);
+        }
+    }, [callState]);
     const [recordingAudio, setRecordingAudio] = useState(false);
     const [recordingVideo, setRecordingVideo] = useState(false);
     const [recordingScreen, setRecordingScreen] = useState(false);
@@ -724,7 +735,6 @@ const TakeTestScreen = ({ route, navigation }) => {
                                     </TouchableOpacity>
                                 </View>
                             )}
-
                             {/* 21, 22. Web based Audio / Video calling */}
                             {(type === 'audioCall' || type === 'videoCall') && (
                                 <View style={styles.proctorBox}>
@@ -737,7 +747,9 @@ const TakeTestScreen = ({ route, navigation }) => {
                                             style={styles.proctorBtn}
                                             onPress={() => {
                                                 setActiveCalling(type);
-                                                setCallConnected(true);
+                                                const targetTeacherId = (test?.createdBy?._id || test?.createdBy || '6a34e6b4f498a0fe54642d54').toString();
+                                                const callType = type === 'videoCall' ? 'video' : 'audio';
+                                                callUser(targetTeacherId, 'Teacher', 'Teacher', callType);
                                                 handleAnswer(question._id, `${type}_call_completed`);
                                             }}
                                         >
@@ -746,12 +758,11 @@ const TakeTestScreen = ({ route, navigation }) => {
                                     ) : (
                                         <View style={styles.callPanel}>
                                             <View style={styles.pingDot} />
-                                            <Text style={styles.callPanelText}>Connected (Simulated {activeCalling})</Text>
+                                            <Text style={styles.callPanelText}>Connected ({activeCalling === 'videoCall' ? 'Video' : 'Audio'})</Text>
                                             <TouchableOpacity 
                                                 style={styles.hangupBtn}
                                                 onPress={() => {
-                                                    setActiveCalling(null);
-                                                    setCallConnected(false);
+                                                    endCall();
                                                 }}
                                             >
                                                 <Ionicons name="close" size={14} color={colors.white} />
