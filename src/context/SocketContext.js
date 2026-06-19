@@ -12,6 +12,8 @@ import {
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import Toast from 'react-native-toast-message';
+import { Audio } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { colors, spacing, fontSizes, borderRadius } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -38,6 +40,55 @@ export const SocketProvider = ({ children }) => {
     const socketRef = useRef(null);
     const timerRef = useRef(null);
     const vibrationIntervalRef = useRef(null);
+    const soundRef = useRef(null);
+
+    // Audio Playback Helpers for Ringtone and Dialtone
+    const playSound = async (type) => {
+        try {
+            if (soundRef.current) {
+                await soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
+
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                shouldRouteThroughReceiverIOS: false,
+                staysActiveInBackground: true,
+            });
+
+            const url = type === 'dialing' 
+                ? 'https://www.soundjay.com/phone/phone-calling-1.mp3' 
+                : 'https://www.soundjay.com/phone/telephone-ring-03a.mp3';
+
+            const { sound } = await Audio.Sound.createAsync(
+                { uri: url },
+                { shouldPlay: true, isLooping: true, volume: 1.0 }
+            );
+            soundRef.current = sound;
+        } catch (error) {
+            console.log('[AUDIO] Error playing sound:', error);
+        }
+    };
+
+    const stopSound = async () => {
+        try {
+            if (soundRef.current) {
+                await soundRef.current.stopAsync();
+                await soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
+            // Reset audio mode to allow microphone capture in Jitsi WebView
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                shouldRouteThroughReceiverIOS: false,
+                staysActiveInBackground: true,
+            });
+        } catch (error) {
+            console.log('[AUDIO] Error stopping sound:', error);
+        }
+    };
 
     // Dynamic Ringtone/Vibration for incoming calls
     const startVibration = () => {
@@ -52,6 +103,7 @@ export const SocketProvider = ({ children }) => {
 
     const handleEndCallLocally = (finalState) => {
         stopVibration();
+        stopSound();
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -153,12 +205,14 @@ export const SocketProvider = ({ children }) => {
                 callType: callType || 'audio'
             });
             startVibration();
+            playSound('ringtone');
         });
 
         // Call Accepted Event
         s.on('call-accepted', ({ callLogId }) => {
             console.log('[SOCKET] Call accepted by peer');
             stopVibration();
+            stopSound();
             setCallState('connected');
             setCallInfo(prev => ({ ...prev, callLogId }));
         });
@@ -244,6 +298,7 @@ export const SocketProvider = ({ children }) => {
             callerId: user ? user._id : '',
             callType
         });
+        playSound('dialing');
     };
 
     const acceptCall = () => {
@@ -251,6 +306,7 @@ export const SocketProvider = ({ children }) => {
 
         console.log('[CALL] Accepting call from:', callInfo.targetId);
         stopVibration();
+        stopSound();
         setCallState('connected');
         socketRef.current.emit('accept-call', {
             callerId: callInfo.targetId,
@@ -309,34 +365,65 @@ export const SocketProvider = ({ children }) => {
                 animationType="slide"
             >
                 <View style={styles.callContainer}>
-                    {/* Ringing/Connected Avatar Area */}
-                    <View style={styles.topArea}>
-                        <View style={[
-                            styles.avatarContainer,
-                            (callState === 'dialing' || callState === 'incoming') && styles.avatarPulse
-                        ]}>
+                    {/* Ringing/Connected Avatar Area or WebRTC Video WebView */}
+                    {callState === 'connected' && callInfo.callType === 'video' ? (
+                        <WebView
+                            source={{
+                                uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=false&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`
+                            }}
+                            style={styles.videoWebView}
+                            mediaPlaybackRequiresUserAction={false}
+                            allowsInlineMediaPlayback={true}
+                            javaScriptEnabled={true}
+                            domStorageEnabled={true}
+                            originWhitelist={['*']}
+                            userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+                        />
+                    ) : (
+                        <View style={styles.topArea}>
                             <View style={[
-                                styles.avatar,
-                                { backgroundColor: callInfo.targetRole === 'Teacher' ? colors.teacher : colors.student }
+                                styles.avatarContainer,
+                                (callState === 'dialing' || callState === 'incoming') && styles.avatarPulse
                             ]}>
-                                <Text style={styles.avatarText}>
-                                    {callInfo.targetName?.[0]?.toUpperCase() || 'U'}
-                                </Text>
+                                <View style={[
+                                    styles.avatar,
+                                    { backgroundColor: callInfo.targetRole === 'Teacher' ? colors.teacher : colors.student }
+                                ]}>
+                                    <Text style={styles.avatarText}>
+                                        {callInfo.targetName?.[0]?.toUpperCase() || 'U'}
+                                    </Text>
+                                </View>
                             </View>
+                            <Text style={styles.targetName}>{callInfo.targetName}</Text>
+                            <Text style={styles.statusText}>
+                                {callState === 'dialing' && 'Calling...'}
+                                {callState === 'incoming' && `Incoming ${callInfo.callType === 'video' ? 'Video' : 'Audio'} Call...`}
+                                {callState === 'connected' && `Active ${callInfo.callType === 'video' ? 'Video' : 'Audio'} Call`}
+                                {callState === 'offline' && 'Offline'}
+                                {callState === 'declined' && 'Call Declined'}
+                                {callState === 'ended' && 'Call Ended'}
+                            </Text>
+                            {callState === 'connected' && (
+                                <Text style={styles.timerText}>{formatTime(callDuration)}</Text>
+                            )}
+
+                            {/* Hidden WebRTC Audio WebView for audio calls */}
+                            {callState === 'connected' && callInfo.callType === 'audio' && (
+                                <WebView
+                                    source={{
+                                        uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=true&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`
+                                    }}
+                                    style={styles.hiddenWebView}
+                                    mediaPlaybackRequiresUserAction={false}
+                                    allowsInlineMediaPlayback={true}
+                                    javaScriptEnabled={true}
+                                    domStorageEnabled={true}
+                                    originWhitelist={['*']}
+                                    userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+                                />
+                            )}
                         </View>
-                        <Text style={styles.targetName}>{callInfo.targetName}</Text>
-                        <Text style={styles.statusText}>
-                            {callState === 'dialing' && 'Calling...'}
-                            {callState === 'incoming' && `Incoming ${callInfo.callType === 'video' ? 'Video' : 'Audio'} Call...`}
-                            {callState === 'connected' && `Active ${callInfo.callType === 'video' ? 'Video' : 'Audio'} Call`}
-                            {callState === 'offline' && 'Offline'}
-                            {callState === 'declined' && 'Call Declined'}
-                            {callState === 'ended' && 'Call Ended'}
-                        </Text>
-                        {callState === 'connected' && (
-                            <Text style={styles.timerText}>{formatTime(callDuration)}</Text>
-                        )}
-                    </View>
+                    )}
 
                     {/* Bottom Controls Area */}
                     <View style={styles.controlsArea}>
@@ -472,5 +559,16 @@ const styles = StyleSheet.create({
         backgroundColor: '#1f2c34',
         alignItems: 'center',
         justifyContent: 'center',
-    }
+    },
+    videoWebView: {
+        width: '100%',
+        height: '75%',
+        backgroundColor: '#0b141a',
+    },
+    hiddenWebView: {
+        width: 0,
+        height: 0,
+        opacity: 0,
+        position: 'absolute',
+    },
 });
