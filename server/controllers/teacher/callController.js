@@ -223,3 +223,22 @@ exports.deleteCallLog = async (req, res) => {
     }
 };
 
+exports.getCallHistory = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const history = await CallLog.find({
+            $or: [
+                { caller: userId },
+                { receiver: userId }
+            ]
+        })
+        .populate('caller', '_id name email role')
+        .populate('receiver', '_id name email role')
+        .sort({ createdAt: -1 });
+
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+

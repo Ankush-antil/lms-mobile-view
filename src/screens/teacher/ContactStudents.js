@@ -25,6 +25,8 @@ const ContactStudents = ({ navigation }) => {
     const { callUser, onlineUsers } = useSocket();
     const [profile, setProfile] = useState(null);
     const [students, setStudents] = useState([]);
+    const [callHistory, setCallHistory] = useState([]);
+    const [activeTab, setActiveTab] = useState('recents'); // 'recents' | 'contacts'
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -38,55 +40,48 @@ const ContactStudents = ({ navigation }) => {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
 
-
     const filteredStudents = students.filter(student =>
         student.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         student.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Fetch profile and students
+    const filteredHistory = callHistory.filter(log => {
+        const peer = log.caller?._id === user?._id ? log.receiver : log.caller;
+        const peerName = peer?.name || log.guestName || 'Unknown Student';
+        return peerName.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+    // Fetch profile, students, and call history
     const fetchData = async () => {
         try {
-            const [profileRes, studentsRes] = await Promise.all([
+            const [profileRes, studentsRes, historyRes] = await Promise.all([
                 axios.get('/users/profile'),
                 axios.get('/users/teacher-students').catch(() => ({ data: [] })),
+                axios.get('/calls/history').catch(() => ({ data: [] }))
             ]);
             setProfile(profileRes.data);
-            
-            // Map students and attach mock call history entries to look like WhatsApp Call Log
-            const mockLogs = [
-                { type: 'incoming', time: 'Today, 11:32 am', icon: 'arrow-down-left', color: '#10b981', isVideo: true },
-                { type: 'outgoing', time: 'Yesterday, 9:09 am', icon: 'arrow-up-right', color: '#10b981', isVideo: false },
-                { type: 'missed', time: '17 June, 7:41 am', icon: 'arrow-down-left', color: colors.danger, isVideo: true },
-                { type: 'incoming', time: '14 June, 11:02 pm', icon: 'arrow-down-left', color: '#10b981', isVideo: false },
-                { type: 'outgoing', time: '13 June, 5:50 pm', icon: 'arrow-up-right', color: '#10b981', isVideo: true }
-            ];
-
-            const mappedStudents = (studentsRes.data || []).map((student, idx) => {
-                const log = mockLogs[idx % mockLogs.length];
-                return {
-                    ...student,
-                    logTime: log.time,
-                    logIcon: log.icon,
-                    logIconColor: log.color,
-                    isVideo: log.isVideo,
-                    logType: log.type
-                };
-            });
-            setStudents(mappedStudents);
+            setStudents(studentsRes.data || []);
+            setCallHistory(historyRes.data || []);
         } catch (e) {
-            console.error(e);
+            console.error('[CONTACTS] Fetch error:', e);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
     };
 
+    const handleDeleteLog = async (logId) => {
+        try {
+            await axios.delete(`/calls/history/${logId}`);
+            setCallHistory(prev => prev.filter(log => log._id !== logId));
+        } catch (e) {
+            console.error('[CONTACTS] Delete log error:', e);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
-
-
 
     const handleSendMsg = () => {
         if (!chatInput.trim()) return;
@@ -137,7 +132,7 @@ const ContactStudents = ({ navigation }) => {
                     </TouchableOpacity>
                     <TextInput
                         style={styles.waSearchInput}
-                        placeholder="Search students..."
+                        placeholder="Search..."
                         placeholderTextColor="rgba(255,255,255,0.6)"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -166,12 +161,26 @@ const ContactStudents = ({ navigation }) => {
                 </View>
             )}
 
-            <View style={styles.recentSection}>
-                <Text style={styles.recentTitle}>Recent</Text>
+            {/* Segment Tab Bar */}
+            <View style={styles.tabBar}>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeTab === 'recents' && styles.activeTabButton]}
+                    onPress={() => setActiveTab('recents')}
+                    activeOpacity={0.7}
+                >
+                    <Text style={[styles.tabText, activeTab === 'recents' && styles.activeTabText]}>Recent Calls</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeTab === 'contacts' && styles.activeTabButton]}
+                    onPress={() => setActiveTab('contacts')}
+                    activeOpacity={0.7}
+                >
+                    <Text style={[styles.tabText, activeTab === 'contacts' && styles.activeTabText]}>Students</Text>
+                </TouchableOpacity>
             </View>
 
             <FlatList
-                data={filteredStudents}
+                data={activeTab === 'recents' ? filteredHistory : filteredStudents}
                 keyExtractor={(item) => item._id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContainer}
@@ -183,84 +192,162 @@ const ContactStudents = ({ navigation }) => {
                     />
                 }
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Ionicons name="people-outline" size={54} color={colors.textMuted} />
-                        <Text style={styles.emptyText}>No Students Found</Text>
-                    </View>
+                    activeTab === 'recents' ? (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="call-outline" size={54} color={colors.textMuted} />
+                            <Text style={styles.emptyText}>No Recent Calls</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="people-outline" size={54} color={colors.textMuted} />
+                            <Text style={styles.emptyText}>No Students Found</Text>
+                        </View>
+                    )
                 }
-                renderItem={({ item }) => (
-                    <TouchableOpacity 
-                        style={styles.waItemRow}
-                        onPress={() => {
-                            setActiveContact(item);
-                            setContactType('chat');
-                        }}
-                        activeOpacity={0.8}
-                    >
-                        {/* Student Avatar with Online Indicator */}
-                        <View style={{ position: 'relative' }}>
-                            <View style={[styles.waAvatar, { backgroundColor: colors.teacher }]}>
-                                <Text style={styles.waAvatarText}>{item.name?.[0] || 'S'}</Text>
-                            </View>
-                            {onlineUsers?.includes(item._id) && (
-                                <View style={styles.onlineIndicator} />
-                            )}
-                        </View>
+                renderItem={({ item }) => {
+                    if (activeTab === 'recents') {
+                        const isCaller = item.caller?._id === user?._id;
+                        const peer = isCaller ? item.receiver : item.caller;
+                        const peerName = peer?.name || item.guestName || 'Unknown Student';
+                        const peerRole = peer?.role || 'Student';
+                        
+                        let logIcon = 'arrow-down-left';
+                        let logIconColor = '#10b981';
+                        if (isCaller) {
+                            logIcon = 'arrow-up-right';
+                            logIconColor = '#10b981';
+                        } else if (item.status === 'missed') {
+                            logIcon = 'arrow-down-left';
+                            logIconColor = colors.danger;
+                        }
 
-                        {/* Student Call Logs Details */}
-                        <View style={styles.waDetails}>
-                            <Text style={styles.waName}>{item.name}</Text>
-                            <View style={styles.waStatusRow}>
-                                <Ionicons name={item.logIcon} size={14} color={item.logIconColor} style={{ marginRight: 4 }} />
-                                <Text style={styles.waLogTime}>{item.logTime}</Text>
-                            </View>
-                        </View>
+                        const formatLogTime = (dateStr) => {
+                            try {
+                                const d = new Date(dateStr);
+                                return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                            } catch (e) {
+                                return dateStr;
+                            }
+                        };
 
-                        {/* WhatsApp right side Chat/Audio/Video Actions */}
-                        <View style={styles.waActionsRow}>
+                        return (
+                            <View style={styles.waItemRow}>
+                                <View style={[styles.waAvatar, { backgroundColor: colors.teacher }]}>
+                                    <Text style={styles.waAvatarText}>{peerName?.[0]?.toUpperCase() || 'S'}</Text>
+                                </View>
+
+                                <View style={styles.waDetails}>
+                                    <Text style={styles.waName}>{peerName}</Text>
+                                    <View style={styles.waStatusRow}>
+                                        <Ionicons name={logIcon} size={14} color={logIconColor} style={{ marginRight: 4 }} />
+                                        <Text style={styles.waLogTime}>{formatLogTime(item.createdAt)}</Text>
+                                        <Text style={[styles.statusBadge, { color: item.status === 'missed' ? colors.danger : colors.success }]}>
+                                            {` • ${item.status}`}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.waActionsRow}>
+                                    {peer?._id && (
+                                        <TouchableOpacity 
+                                            style={styles.waActionBtn}
+                                            onPress={() => {
+                                                callUser(peer._id, peerName, peerRole, item.callType);
+                                            }}
+                                            activeOpacity={0.7}
+                                            style={{ marginRight: 8 }}
+                                        >
+                                            <Ionicons 
+                                                name={item.callType === 'video' ? "videocam-outline" : "call-outline"} 
+                                                size={22} 
+                                                color={colors.teacher} 
+                                            />
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity 
+                                        style={styles.waActionBtn}
+                                        onPress={() => handleDeleteLog(item._id)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons 
+                                            name="trash-outline" 
+                                            size={20} 
+                                            color={colors.danger} 
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        );
+                    } else {
+                        return (
                             <TouchableOpacity 
-                                style={styles.waActionBtn}
+                                style={styles.waItemRow}
                                 onPress={() => {
                                     setActiveContact(item);
                                     setContactType('chat');
                                 }}
-                                activeOpacity={0.75}
+                                activeOpacity={0.8}
                             >
-                                <Ionicons 
-                                    name="chatbubble-ellipses-outline" 
-                                    size={22} 
-                                    color={colors.teacher} 
-                                />
+                                <View style={{ position: 'relative' }}>
+                                    <View style={[styles.waAvatar, { backgroundColor: colors.teacher }]}>
+                                        <Text style={styles.waAvatarText}>{item.name?.[0] || 'S'}</Text>
+                                    </View>
+                                    {onlineUsers?.includes(item._id) && (
+                                        <View style={styles.onlineIndicator} />
+                                    )}
+                                </View>
+
+                                <View style={styles.waDetails}>
+                                    <Text style={styles.waName}>{item.name}</Text>
+                                    <Text style={styles.waLogTime}>{item.email}</Text>
+                                </View>
+
+                                <View style={styles.waActionsRow}>
+                                    <TouchableOpacity 
+                                        style={styles.waActionBtn}
+                                        onPress={() => {
+                                            setActiveContact(item);
+                                            setContactType('chat');
+                                        }}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Ionicons 
+                                            name="chatbubble-ellipses-outline" 
+                                            size={22} 
+                                            color={colors.teacher} 
+                                        />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        style={styles.waActionBtn}
+                                        onPress={() => {
+                                            callUser(item._id, item.name, 'Student', 'audio');
+                                        }}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Ionicons 
+                                            name="call-outline" 
+                                            size={22} 
+                                            color={colors.teacher} 
+                                        />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        style={styles.waActionBtn}
+                                        onPress={() => {
+                                            callUser(item._id, item.name, 'Student', 'video');
+                                        }}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Ionicons 
+                                            name="videocam-outline" 
+                                            size={22} 
+                                            color={colors.teacher} 
+                                        />
+                                    </TouchableOpacity>
+                                </View>
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.waActionBtn}
-                                onPress={() => {
-                                    callUser(item._id, item.name, 'Student', 'audio');
-                                }}
-                                activeOpacity={0.75}
-                            >
-                                <Ionicons 
-                                    name="call-outline" 
-                                    size={22} 
-                                    color={colors.teacher} 
-                                />
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.waActionBtn}
-                                onPress={() => {
-                                    callUser(item._id, item.name, 'Student', 'video');
-                                }}
-                                activeOpacity={0.75}
-                            >
-                                <Ionicons 
-                                    name="videocam-outline" 
-                                    size={22} 
-                                    color={colors.teacher} 
-                                />
-                            </TouchableOpacity>
-                        </View>
-                    </TouchableOpacity>
-                )}
+                        );
+                    }
+                }}
             />
 
 
@@ -778,6 +865,35 @@ const styles = StyleSheet.create({
         backgroundColor: colors.success || '#10b981',
         borderWidth: 2,
         borderColor: colors.bg || '#ffffff',
+    },
+    tabBar: {
+        flexDirection: 'row',
+        backgroundColor: '#075e54',
+        borderBottomWidth: 1.5,
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    tabButton: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 14,
+        borderBottomWidth: 3.5,
+        borderBottomColor: 'transparent',
+    },
+    activeTabButton: {
+        borderBottomColor: colors.white,
+    },
+    tabText: {
+        fontSize: fontSizes.md,
+        fontWeight: '800',
+        color: 'rgba(255, 255, 255, 0.65)',
+    },
+    activeTabText: {
+        color: colors.white,
+    },
+    statusBadge: {
+        fontSize: fontSizes.xs,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
 });
 

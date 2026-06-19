@@ -37,11 +37,14 @@ export const SocketProvider = ({ children }) => {
     });
     
     const [callDuration, setCallDuration] = useState(0);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isSpeaker, setIsSpeaker] = useState(true);
 
     const socketRef = useRef(null);
     const timerRef = useRef(null);
     const vibrationIntervalRef = useRef(null);
     const soundRef = useRef(null);
+    const webViewRef = useRef(null);
 
     // Request Camera & Audio Permissions for WebRTC inside WebView on Android/iOS
     const requestCallPermissions = async () => {
@@ -88,6 +91,7 @@ export const SocketProvider = ({ children }) => {
                 allowsRecordingIOS: false,
                 playsInSilentModeIOS: true,
                 shouldRouteThroughReceiverIOS: false,
+                playThroughEarpieceAndroid: false,
                 staysActiveInBackground: true,
             });
 
@@ -118,10 +122,47 @@ export const SocketProvider = ({ children }) => {
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
                 shouldRouteThroughReceiverIOS: false,
+                playThroughEarpieceAndroid: false,
                 staysActiveInBackground: true,
             });
         } catch (error) {
             console.log('[AUDIO] Error stopping sound:', error);
+        }
+    };
+
+    const toggleMute = () => {
+        const nextMuted = !isMuted;
+        setIsMuted(nextMuted);
+        console.log('[CALL] Toggling mute to:', nextMuted);
+        if (webViewRef.current) {
+            const jsInject = `
+                try {
+                    if (window.APP && window.APP.conference) {
+                        window.APP.conference.muteAudio(${nextMuted});
+                    }
+                } catch(e) {
+                    console.warn('Mute injection failed:', e);
+                }
+                true;
+            `;
+            webViewRef.current.injectJavaScript(jsInject);
+        }
+    };
+
+    const toggleSpeaker = async () => {
+        try {
+            const nextSpeaker = !isSpeaker;
+            setIsSpeaker(nextSpeaker);
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                shouldRouteThroughReceiverIOS: !nextSpeaker,
+                playThroughEarpieceAndroid: !nextSpeaker,
+                staysActiveInBackground: true,
+            });
+            console.log('[AUDIO] Speaker toggled to:', nextSpeaker);
+        } catch (error) {
+            console.log('[AUDIO] Error toggling speaker:', error);
         }
     };
 
@@ -139,6 +180,8 @@ export const SocketProvider = ({ children }) => {
     const handleEndCallLocally = (finalState) => {
         stopVibration();
         stopSound();
+        setIsMuted(false);
+        setIsSpeaker(true);
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -247,8 +290,9 @@ export const SocketProvider = ({ children }) => {
         });
 
         // Call Accepted Event
-        s.on('call-accepted', ({ callLogId }) => {
-            console.log('[SOCKET] Call accepted by peer');
+        s.on('call-accepted', async ({ callLogId }) => {
+            console.log('[SOCKET] Call accepted by peer. Requesting permissions...');
+            await requestCallPermissions();
             stopVibration();
             stopSound();
             setCallState('connected');
@@ -304,7 +348,7 @@ export const SocketProvider = ({ children }) => {
     }, [callState]);
 
     // Call Actions
-    const callUser = (targetId, targetName, targetRole, callType = 'audio') => {
+    const callUser = async (targetId, targetName, targetRole, callType = 'audio') => {
         if (!socketRef.current || !socketRef.current.connected) {
             console.log('[CALL] Socket not connected. Reconnecting...');
             if (socketRef.current) {
@@ -319,7 +363,7 @@ export const SocketProvider = ({ children }) => {
         }
 
         console.log(`[CALL] Calling ${targetName} (ID: ${targetId}, Type: ${callType})`);
-        requestCallPermissions();
+        await requestCallPermissions();
         setCallState('dialing');
         setCallInfo({
             targetId,
@@ -340,11 +384,11 @@ export const SocketProvider = ({ children }) => {
         playSound('dialing');
     };
 
-    const acceptCall = () => {
+    const acceptCall = async () => {
         if (!socketRef.current || !callInfo.targetId) return;
 
         console.log('[CALL] Accepting call from:', callInfo.targetId);
-        requestCallPermissions();
+        await requestCallPermissions();
         stopVibration();
         stopSound();
         setCallState('connected');
@@ -408,16 +452,21 @@ export const SocketProvider = ({ children }) => {
                     {/* Ringing/Connected Avatar Area or WebRTC Video WebView */}
                     {callState === 'connected' && callInfo.callType === 'video' ? (
                         <WebView
+                            ref={webViewRef}
+                            key={`webview-${callInfo.callLogId || 'default'}`}
                             source={{
-                                uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=false&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`
+                                uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=false&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&config.disableDeepLinking=true&interfaceConfig.TOOLBAR_BUTTONS=[]`
                             }}
                             style={styles.videoWebView}
                             mediaPlaybackRequiresUserAction={false}
                             allowsInlineMediaPlayback={true}
                             javaScriptEnabled={true}
                             domStorageEnabled={true}
+                            databaseEnabled={true}
+                            thirdPartyCookiesEnabled={true}
                             originWhitelist={['*']}
-                            userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+                            userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            mediaCapturePermissionGrantType="grant"
                             onPermissionRequest={(event) => {
                                 event.grant(event.resources);
                             }}
@@ -453,16 +502,21 @@ export const SocketProvider = ({ children }) => {
                             {/* Hidden WebRTC Audio WebView for audio calls */}
                             {callState === 'connected' && callInfo.callType === 'audio' && (
                                 <WebView
+                                    ref={webViewRef}
+                                    key={`webview-${callInfo.callLogId || 'default'}`}
                                     source={{
-                                        uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=true&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`
+                                        uri: `https://meet.jit.si/lms-call-room-${callInfo.callLogId || 'default'}#config.startWithVideoMuted=true&config.startWithAudioMuted=false&config.prejoinPageEnabled=false&config.disableDeepLinking=true&interfaceConfig.TOOLBAR_BUTTONS=[]`
                                     }}
                                     style={styles.hiddenWebView}
                                     mediaPlaybackRequiresUserAction={false}
                                     allowsInlineMediaPlayback={true}
                                     javaScriptEnabled={true}
                                     domStorageEnabled={true}
+                                    databaseEnabled={true}
+                                    thirdPartyCookiesEnabled={true}
                                     originWhitelist={['*']}
-                                    userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+                                    userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                                    mediaCapturePermissionGrantType="grant"
                                     onPermissionRequest={(event) => {
                                         event.grant(event.resources);
                                     }}
@@ -493,8 +547,12 @@ export const SocketProvider = ({ children }) => {
                         ) : (
                             <View style={styles.actionsRow}>
                                 {callState === 'connected' && (
-                                    <TouchableOpacity style={styles.mutedBtnCircle} activeOpacity={0.7}>
-                                        <Ionicons name="mic-off-outline" size={24} color={colors.white} />
+                                    <TouchableOpacity
+                                        style={[styles.mutedBtnCircle, isMuted && { backgroundColor: colors.danger }]}
+                                        onPress={toggleMute}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name={isMuted ? "mic-off-outline" : "mic-outline"} size={24} color={colors.white} />
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
@@ -506,8 +564,12 @@ export const SocketProvider = ({ children }) => {
                                     <Ionicons name="close" size={32} color={colors.white} />
                                 </TouchableOpacity>
                                 {callState === 'connected' && (
-                                    <TouchableOpacity style={styles.mutedBtnCircle} activeOpacity={0.7}>
-                                        <Ionicons name="volume-high-outline" size={24} color={colors.white} />
+                                    <TouchableOpacity
+                                        style={[styles.mutedBtnCircle, !isSpeaker && { backgroundColor: 'rgba(255,255,255,0.08)' }]}
+                                        onPress={toggleSpeaker}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name={isSpeaker ? "volume-high-outline" : "volume-mute-outline"} size={24} color={colors.white} />
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -612,9 +674,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#0b141a',
     },
     hiddenWebView: {
-        width: 0,
-        height: 0,
-        opacity: 0,
+        width: 1,
+        height: 1,
+        opacity: 0.01,
         position: 'absolute',
+        left: -100,
+        top: -100,
     },
 });
