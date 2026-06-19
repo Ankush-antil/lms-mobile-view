@@ -16,11 +16,13 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
 const ContactStudents = ({ navigation }) => {
     const { user } = useAuth();
+    const { callUser, onlineUsers } = useSocket();
     const [profile, setProfile] = useState(null);
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -35,8 +37,7 @@ const ContactStudents = ({ navigation }) => {
     const [contactType, setContactType] = useState(null); // 'chat' | 'audio' | 'videocam' | null
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
-    const [callState, setCallState] = useState('ringing'); // 'ringing' | 'connected'
-    const [callTimer, setCallTimer] = useState(0);
+
 
     const filteredStudents = students.filter(student =>
         student.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -85,35 +86,7 @@ const ContactStudents = ({ navigation }) => {
         fetchData();
     }, []);
 
-    // Call connected timer
-    useEffect(() => {
-        let interval;
-        if (contactType && (contactType === 'audio' || contactType === 'videocam') && callState === 'connected') {
-            interval = setInterval(() => {
-                setCallTimer(prev => prev + 1);
-            }, 1000);
-        } else {
-            setCallTimer(0);
-        }
-        return () => clearInterval(interval);
-    }, [contactType, callState]);
 
-    // Ringing state timer (auto connects in 2 seconds)
-    useEffect(() => {
-        let timeout;
-        if (contactType && (contactType === 'audio' || contactType === 'videocam') && callState === 'ringing') {
-            timeout = setTimeout(() => {
-                setCallState('connected');
-            }, 2000);
-        }
-        return () => clearTimeout(timeout);
-    }, [contactType, callState]);
-
-    const formatTime = (secs) => {
-        const m = Math.floor(secs / 60).toString().padStart(2, '0');
-        const s = (secs % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
-    };
 
     const handleSendMsg = () => {
         if (!chatInput.trim()) return;
@@ -224,9 +197,14 @@ const ContactStudents = ({ navigation }) => {
                         }}
                         activeOpacity={0.8}
                     >
-                        {/* Student Avatar */}
-                        <View style={[styles.waAvatar, { backgroundColor: colors.teacher }]}>
-                            <Text style={styles.waAvatarText}>{item.name?.[0] || 'S'}</Text>
+                        {/* Student Avatar with Online Indicator */}
+                        <View style={{ position: 'relative' }}>
+                            <View style={[styles.waAvatar, { backgroundColor: colors.teacher }]}>
+                                <Text style={styles.waAvatarText}>{item.name?.[0] || 'S'}</Text>
+                            </View>
+                            {onlineUsers?.includes(item._id) && (
+                                <View style={styles.onlineIndicator} />
+                            )}
                         </View>
 
                         {/* Student Call Logs Details */}
@@ -257,8 +235,7 @@ const ContactStudents = ({ navigation }) => {
                             <TouchableOpacity 
                                 style={styles.waActionBtn}
                                 onPress={() => {
-                                    setActiveContact(item);
-                                    setContactType('audio');
+                                    callUser(item._id, item.name, 'Student', 'audio');
                                 }}
                                 activeOpacity={0.75}
                             >
@@ -271,8 +248,7 @@ const ContactStudents = ({ navigation }) => {
                             <TouchableOpacity 
                                 style={styles.waActionBtn}
                                 onPress={() => {
-                                    setActiveContact(item);
-                                    setContactType('videocam');
+                                    callUser(item._id, item.name, 'Student', 'video');
                                 }}
                                 activeOpacity={0.75}
                             >
@@ -287,76 +263,7 @@ const ContactStudents = ({ navigation }) => {
                 )}
             />
 
-            {/* Calling Modal (Audio/Video) */}
-            <Modal
-                visible={contactType === 'audio' || contactType === 'videocam'}
-                animationType="slide"
-                transparent={false}
-                onRequestClose={() => {
-                    setContactType(null);
-                    setCallState('ringing');
-                }}
-            >
-                <View style={styles.callContainer}>
-                    {contactType === 'videocam' && callState === 'connected' ? (
-                        <View style={styles.videoGrid}>
-                            <View style={styles.remoteVideo}>
-                                <View style={styles.videoAvatarContainer}>
-                                    <View style={[styles.largeAvatar, { backgroundColor: colors.teacher }]}>
-                                        <Text style={styles.largeAvatarText}>{activeContact?.name?.[0]}</Text>
-                                    </View>
-                                    <Text style={styles.videoNameText}>{activeContact?.name}</Text>
-                                    <Text style={styles.videoStatusText}>Video Streaming...</Text>
-                                </View>
-                            </View>
-                            <View style={styles.localVideoFloating}>
-                                <View style={styles.pipAvatar}>
-                                    <Text style={styles.pipAvatarText}>{profile?.name?.[0]}</Text>
-                                </View>
-                                <Text style={styles.pipLabel}>You</Text>
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={styles.audioCallContent}>
-                            <View style={[styles.ringingAvatarContainer, callState === 'ringing' && styles.ringingPulsate]}>
-                                <View style={[styles.hugeAvatar, { backgroundColor: colors.teacher }]}>
-                                    <Text style={styles.hugeAvatarText}>{activeContact?.name?.[0]}</Text>
-                                </View>
-                            </View>
-                            <Text style={styles.callName}>{activeContact?.name}</Text>
-                            <Text style={styles.callStateText}>
-                                {callState === 'ringing' 
-                                    ? `Ringing (${contactType === 'audio' ? 'Audio' : 'Video'})...` 
-                                    : `Active Call (${contactType === 'audio' ? 'Audio' : 'Video'})`}
-                            </Text>
-                        </View>
-                    )}
 
-                    <View style={styles.callControlsContainer}>
-                        {callState === 'connected' && (
-                            <Text style={styles.timerText}>{formatTime(callTimer)}</Text>
-                        )}
-                        <View style={styles.controlButtonsRow}>
-                            <TouchableOpacity style={styles.iconControlCircle} activeOpacity={0.7}>
-                                <Ionicons name="mic-off-outline" size={24} color={colors.text} />
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={[styles.iconControlCircle, { backgroundColor: colors.danger }]}
-                                onPress={() => {
-                                    setContactType(null);
-                                    setCallState('ringing');
-                                }}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name="close" size={28} color={colors.white} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.iconControlCircle} activeOpacity={0.7}>
-                                <Ionicons name="volume-high-outline" size={24} color={colors.text} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
 
             {/* Chat Modal */}
             <Modal
@@ -860,6 +767,17 @@ const styles = StyleSheet.create({
         backgroundColor: colors.accent,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    onlineIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        right: 14,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: colors.success || '#10b981',
+        borderWidth: 2,
+        borderColor: colors.bg || '#ffffff',
     },
 });
 

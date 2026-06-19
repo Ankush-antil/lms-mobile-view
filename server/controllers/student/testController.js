@@ -29,8 +29,13 @@ const getTests = asyncHandler(async (req, res) => {
     const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     let query = {};
 
-    // 1. MUST match Institute (case-insensitive)
-    query.institute = { $regex: new RegExp(`^\\s*${escapeRegex(studentInstitute)}\\s*$`, 'i') };
+    // 1. MUST match Institute (case-insensitive, substring/word flexible matching for variations like "Digital study" vs "Digital Study Institute")
+    const words = studentInstitute.split(/\s+/).map(w => w.trim()).filter(w => w.length > 2);
+    if (words.length > 0) {
+        query.institute = { $regex: new RegExp(words.map(escapeRegex).join('|'), 'i') };
+    } else {
+        query.institute = { $regex: new RegExp(`^\\s*${escapeRegex(studentInstitute)}\\s*$`, 'i') };
+    }
 
     // 2. Subject matching: Only restrict if the student has specific subjects assigned
     if (studentSubject && studentSubject.trim() !== '') {

@@ -3,6 +3,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { AuthProvider } from './src/context/AuthContext';
+import { SocketProvider } from './src/context/SocketContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
 export default function App() {
@@ -10,8 +11,10 @@ export default function App() {
         <GestureHandlerRootView style={{ flex: 1 }}>
             <SafeAreaProvider>
                 <AuthProvider>
-                    <AppNavigator />
-                    <Toast />
+                    <SocketProvider>
+                        <AppNavigator />
+                        <Toast />
+                    </SocketProvider>
                 </AuthProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>
