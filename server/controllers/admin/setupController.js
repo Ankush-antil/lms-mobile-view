@@ -106,8 +106,9 @@ const createInstitute = asyncHandler(async (req, res) => {
 // @route   GET /api/courses
 // @access  Public
 const getCourses = asyncHandler(async (req, res) => {
-    const { instituteId } = req.query;
-    const query = instituteId ? { institute: instituteId } : {};
+    const { instituteId, institute } = req.query;
+    const finalInstituteId = instituteId || institute;
+    const query = finalInstituteId ? { institute: finalInstituteId } : {};
 
     // Populate institute details
     const courses = await Course.find(query).populate('institute', 'name code');
@@ -118,7 +119,13 @@ const getCourses = asyncHandler(async (req, res) => {
 // @route   POST /api/courses
 // @access  Private/Admin
 const createCourse = asyncHandler(async (req, res) => {
-    const { name, code, description, instituteId, subjects } = req.body;
+    const { name, code, description, instituteId, institute, subjects } = req.body;
+    const finalInstituteId = instituteId || institute;
+
+    if (!finalInstituteId) {
+        res.status(400);
+        throw new Error('Institute is required');
+    }
 
     const courseExists = await Course.findOne({ code });
     if (courseExists) {
@@ -126,14 +133,17 @@ const createCourse = asyncHandler(async (req, res) => {
         throw new Error('Course code already exists');
     }
 
-    // subjects can be comma separated string or array
-    const subjectsArray = Array.isArray(subjects) ? subjects : subjects.split(',').map(s => s.trim());
+    // subjects can be comma separated string or array or undefined
+    let subjectsArray = [];
+    if (subjects) {
+        subjectsArray = Array.isArray(subjects) ? subjects : subjects.split(',').map(s => s.trim());
+    }
 
     const course = await Course.create({
         name,
         code,
         description,
-        institute: instituteId,
+        institute: finalInstituteId,
         subjects: subjectsArray
     });
 
