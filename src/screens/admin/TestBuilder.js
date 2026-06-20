@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 
 // List of all 24 elements categorized
 const allElements = [
@@ -624,11 +625,17 @@ const QuestionCard = ({ question, index, onUpdate, onDelete, onDuplicate }) => {
 
 // ─── Test Builder Main ─────────────────────────────────────────────────────────
 const TestBuilder = ({ route, navigation }) => {
+    const { user } = useAuth();
+    const isInstitute = user?.role === 'Institute';
+    const initialInst = (isInstitute && user?.institute)
+        ? (typeof user.institute === 'object' ? user.institute.name : user.institute)
+        : 'Digital Study Institute';
+
     const [testTitle, setTestTitle] = useState('');
     const [subject, setSubject] = useState('React');
     const [duration, setDuration] = useState('30');
     const [activity, setActivity] = useState('Quiz');
-    const [institute, setInstitute] = useState('Digital Study Institute');
+    const [institute, setInstitute] = useState(initialInst);
     const [course, setCourse] = useState('Web Development Bootcamp');
     const [publishMode, setPublishMode] = useState('connected'); // 'connected' | 'public'
     const [questions, setQuestions] = useState([]);
@@ -640,7 +647,7 @@ const TestBuilder = ({ route, navigation }) => {
 
     // New Publish Options States
     const [publishModalVisible, setPublishModalVisible] = useState(false);
-    const [connectInstitute, setConnectInstitute] = useState('Digital Study Institute');
+    const [connectInstitute, setConnectInstitute] = useState(initialInst);
     const [connectCourse, setConnectCourse] = useState('Web Development Bootcamp');
     const [connectSubject, setConnectSubject] = useState('React');
     const [connectActivity, setConnectActivity] = useState('Quiz');
@@ -1131,11 +1138,12 @@ const TestBuilder = ({ route, navigation }) => {
                             <View style={styles.settingsField}>
                                 <Text style={styles.settingsLabel}>Institute</Text>
                                 <TextInput
-                                    style={styles.settingsInput}
+                                    style={[styles.settingsInput, isInstitute && { backgroundColor: '#e2e8f0', color: colors.textSecondary }]}
                                     placeholder="e.g., Digital Study Institute"
                                     placeholderTextColor={colors.textMuted}
                                     value={institute}
                                     onChangeText={setInstitute}
+                                    editable={!isInstitute}
                                 />
                             </View>
                             <View style={styles.settingsField}>
@@ -1249,13 +1257,14 @@ const TestBuilder = ({ route, navigation }) => {
                                     <View style={styles.settingsField}>
                                         <Text style={styles.settingsLabel}>Institute Name</Text>
                                         <TextInput
-                                            style={styles.settingsInput}
+                                            style={[styles.settingsInput, isInstitute && { backgroundColor: '#e2e8f0', color: colors.textSecondary }]}
                                             placeholder="Select or enter Institute..."
                                             placeholderTextColor={colors.textMuted}
                                             value={connectInstitute}
                                             onChangeText={setConnectInstitute}
+                                            editable={!isInstitute}
                                         />
-                                        {institutesList.length > 0 && (
+                                        {!isInstitute && institutesList.length > 0 && (
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestScroll}>
                                                 {institutesList.map((inst, idx) => (
                                                     <TouchableOpacity key={idx} style={styles.suggestPill} onPress={() => setConnectInstitute(inst.name)}>

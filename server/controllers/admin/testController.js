@@ -47,8 +47,17 @@ const createTest = asyncHandler(async (req, res) => {
 
     validateWebpageQuestions(questions);
 
+    let details = { ...testDetails };
+    if (req.user && req.user.role === 'Institute') {
+        const Institute = require('../../models/Institute');
+        const instituteDoc = await Institute.findById(req.user.institute);
+        if (instituteDoc) {
+            details.institute = instituteDoc.name;
+        }
+    }
+
     const test = await Test.create({
-        ...testDetails,
+        ...details,
         settings,
         questions,
         createdBy: req.user._id
@@ -69,7 +78,17 @@ const createTest = asyncHandler(async (req, res) => {
 // @route   GET /api/tests
 // @access  Private/Admin
 const getTests = asyncHandler(async (req, res) => {
-    const tests = await Test.find({}).sort({ createdAt: -1 });
+    let query = {};
+    if (req.user && req.user.role === 'Institute') {
+        const Institute = require('../../models/Institute');
+        const instituteDoc = await Institute.findById(req.user.institute);
+        const instName = instituteDoc ? instituteDoc.name : '';
+        query.$or = [
+            { institute: req.user.institute },
+            { institute: instName }
+        ];
+    }
+    const tests = await Test.find(query).sort({ createdAt: -1 });
     console.log(`[Admin-Tests] Found ${tests.length} tests`);
     res.json(tests);
 });
@@ -97,8 +116,21 @@ const updateTest = asyncHandler(async (req, res) => {
     const test = await Test.findById(req.params.id);
 
     if (test) {
+        if (req.user && req.user.role === 'Institute') {
+            const Institute = require('../../models/Institute');
+            const instituteDoc = await Institute.findById(req.user.institute);
+            const instName = instituteDoc ? instituteDoc.name : '';
+            if (test.institute !== req.user.institute?.toString() && test.institute !== instName) {
+                res.status(403);
+                throw new Error('Not authorized to access tests of other institutes');
+            }
+        }
+
         if (testDetails.title !== undefined) test.title = testDetails.title;
-        if (testDetails.institute !== undefined) test.institute = testDetails.institute;
+        // Institute users cannot assign to other institutes
+        if (testDetails.institute !== undefined && req.user.role !== 'Institute') {
+            test.institute = testDetails.institute;
+        }
         if (testDetails.course !== undefined) test.course = testDetails.course;
         if (testDetails.subject !== undefined) test.subject = testDetails.subject;
         if (testDetails.date !== undefined) test.date = testDetails.date;
@@ -126,6 +158,15 @@ const updateTest = asyncHandler(async (req, res) => {
 const deleteTest = asyncHandler(async (req, res) => {
     const test = await Test.findById(req.params.id);
     if (test) {
+        if (req.user && req.user.role === 'Institute') {
+            const Institute = require('../../models/Institute');
+            const instituteDoc = await Institute.findById(req.user.institute);
+            const instName = instituteDoc ? instituteDoc.name : '';
+            if (test.institute !== req.user.institute?.toString() && test.institute !== instName) {
+                res.status(403);
+                throw new Error('Not authorized to delete tests of other institutes');
+            }
+        }
         await test.deleteOne();
         res.json({ message: 'Test removed' });
     } else {

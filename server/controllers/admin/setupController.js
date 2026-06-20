@@ -2,13 +2,20 @@ const asyncHandler = require('express-async-handler');
 const Institute = require('../../models/Institute');
 const Course = require('../../models/Course');
 const Activity = require('../../models/Activity');
+const User = require('../../models/User');
 
 // @desc    Get all institutes
 // @route   GET /api/institutes
 // @access  Public (or Private)
 const getInstitutes = asyncHandler(async (req, res) => {
+    let matchQuery = {};
+    if (req.user && req.user.role === 'Institute') {
+        const mongoose = require('mongoose');
+        matchQuery = { _id: new mongoose.Types.ObjectId(req.user.institute) };
+    }
     // Get all institutes and their course counts
     const institutes = await Institute.aggregate([
+        ...(Object.keys(matchQuery).length > 0 ? [{ $match: matchQuery }] : []),
         {
             $lookup: {
                 from: 'courses',
@@ -77,12 +84,23 @@ const updateInstitute = asyncHandler(async (req, res) => {
 // @route   POST /api/institutes
 // @access  Private/Admin
 const createInstitute = asyncHandler(async (req, res) => {
-    const { name, code, address, contactEmail } = req.body;
+    const { name, code, address, contactEmail, password } = req.body;
+
+    if (!password) {
+        res.status(400);
+        throw new Error('Password is required for the institute portal account');
+    }
 
     const instituteExists = await Institute.findOne({ code });
     if (instituteExists) {
         res.status(400);
         throw new Error('Institute code already exists');
+    }
+
+    const emailExists = await User.findOne({ email: contactEmail });
+    if (emailExists) {
+        res.status(400);
+        throw new Error('User account with this contact email already exists');
     }
 
     const institute = await Institute.create({
@@ -92,6 +110,15 @@ const createInstitute = asyncHandler(async (req, res) => {
         contactEmail
     });
 
+    // Create the Institute User portal account
+    const user = await User.create({
+        name: name,
+        email: contactEmail,
+        password: password,
+        role: 'Institute',
+        institute: institute._id
+    });
+
     // Log Activity
     await Activity.create({
         type: 'INSTITUTE_CREATED',
@@ -99,15 +126,23 @@ const createInstitute = asyncHandler(async (req, res) => {
         detail: `${institute.name} (${institute.code})`
     });
 
-    res.status(201).json(institute);
+    res.status(201).json({
+        ...institute._doc,
+        portalAccount: {
+            email: user.email,
+            role: user.role
+        }
+    });
 });
 
 // @desc    Get all courses (optionally filter by institute)
 // @route   GET /api/courses
 // @access  Public
 const getCourses = asyncHandler(async (req, res) => {
-    const { instituteId, institute } = req.query;
-    const finalInstituteId = instituteId || institute;
+    let finalInstituteId = req.query.instituteId || req.query.institute;
+    if (req.user && req.user.role === 'Institute') {
+        finalInstituteId = req.user.institute;
+    }
     const query = finalInstituteId ? { institute: finalInstituteId } : {};
 
     // Populate institute details
@@ -120,7 +155,11 @@ const getCourses = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const createCourse = asyncHandler(async (req, res) => {
     const { name, code, description, instituteId, institute, subjects } = req.body;
-    const finalInstituteId = instituteId || institute;
+    let finalInstituteId = instituteId || institute;
+
+    if (req.user && req.user.role === 'Institute') {
+        finalInstituteId = req.user.institute;
+    }
 
     if (!finalInstituteId) {
         res.status(400);
@@ -186,6 +225,11 @@ const deleteCourse = asyncHandler(async (req, res) => {
     const course = await Course.findById(req.params.id);
 
     if (course) {
+        if (req.user.role === 'Institute' && course.institute?.toString() !== req.user.institute?.toString()) {
+            res.status(403);
+            throw new Error('Not authorized to delete course from another institute');
+        }
+
         await course.deleteOne();
 
         await Activity.create({

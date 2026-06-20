@@ -16,7 +16,7 @@ const loginUser = async (req, res) => {
         // Log for debugging
         console.log(`Login attempt for: ${email}`);
 
-        const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+        const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } }).populate('institute');
 
         if (user && (await user.matchPassword(password))) {
             const token = generateToken(user._id);
@@ -34,6 +34,7 @@ const loginUser = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                institute: user.institute,
                 token: token
             });
         } else {
@@ -50,7 +51,7 @@ const loginUser = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('-password');
+        const user = await User.findById(req.user._id).select('-password').populate('institute');
         if (user) {
             res.json(user);
         } else {

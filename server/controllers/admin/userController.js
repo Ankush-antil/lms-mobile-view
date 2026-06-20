@@ -8,7 +8,10 @@ const Course = require('../../models/Course');
 // @access  Private/Admin
 const getUsers = asyncHandler(async (req, res) => {
     const role = req.query.role;
-    const query = role ? { role } : {};
+    let query = role ? { role } : {};
+    if (req.user && req.user.role === 'Institute') {
+        query.institute = req.user.institute;
+    }
     console.log(`[API] Fetching users with query:`, query);
 
     const users = await User.find(query)
@@ -33,12 +36,17 @@ const createUser = asyncHandler(async (req, res) => {
         throw new Error('User already exists');
     }
 
+    let userInstitute = institute;
+    if (req.user && req.user.role === 'Institute') {
+        userInstitute = req.user.institute;
+    }
+
     const userFields = {
         name,
         email,
         password, // Middleware will hash this
         role,
-        institute,
+        institute: userInstitute,
         mobileNumber: mobileNumber || ''
     };
 
@@ -92,6 +100,10 @@ const createUser = asyncHandler(async (req, res) => {
 const deleteUser = asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (user) {
+        if (req.user.role === 'Institute' && user.institute?.toString() !== req.user.institute?.toString()) {
+            res.status(403);
+            throw new Error('Not authorized to delete user from another institute');
+        }
         await user.deleteOne();
         res.json({ message: 'User removed' });
     } else {
@@ -107,10 +119,16 @@ const updateUser = asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
 
     if (user) {
+        if (req.user.role === 'Institute' && user.institute?.toString() !== req.user.institute?.toString()) {
+            res.status(403);
+            throw new Error('Not authorized to update user from another institute');
+        }
         user.name = req.body.name !== undefined ? req.body.name : user.name;
         user.email = req.body.email !== undefined ? req.body.email : user.email;
         user.avatar = req.body.avatar !== undefined ? req.body.avatar : user.avatar;
-        user.institute = req.body.institute !== undefined ? req.body.institute : user.institute;
+        if (req.user.role !== 'Institute') {
+            user.institute = req.body.institute !== undefined ? req.body.institute : user.institute;
+        }
         user.mobileNumber = req.body.mobileNumber !== undefined ? req.body.mobileNumber : user.mobileNumber;
 
         if (req.body.password && req.body.password.trim() !== '') {

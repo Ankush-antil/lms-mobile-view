@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 const AdminDashboard = ({ navigation }) => {
     const { user, logout } = useAuth();
     const isEditor = user?.role === 'Editor';
+    const isInstitute = user?.role === 'Institute';
     
     const { width: screenWidth } = Dimensions.get('window');
     const cardWidth = (screenWidth - spacing.md * 2 - 16) / 3;
@@ -42,18 +43,35 @@ const AdminDashboard = ({ navigation }) => {
             { label: 'Tests List', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
             { label: 'Test Builder', icon: 'add-circle', screen: 'TestBuilder', color: colors.success, bg: '#ecfdf5' },
           ]
-        : [
-            { label: 'Students', icon: 'person', screen: 'StudentsList', color: colors.student, bg: '#eef2ff' },
-            { label: 'Teachers', icon: 'people', screen: 'TeachersList', color: colors.teacher, bg: '#ecfdf5' },
-            { label: 'Editors', icon: 'create-outline', screen: 'EditorsList', color: colors.accent, bg: '#eef2ff' },
-            { label: 'Courses', icon: 'book', screen: 'CoursesList', color: colors.warning, bg: '#fef3c7' },
-            { label: 'Tests', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
-            { label: 'Institutes', icon: 'business', screen: 'InstitutesList', color: colors.accent, bg: '#eef2ff' },
-          ];
+        : (isInstitute
+            ? [
+                { label: 'Students', icon: 'person', screen: 'StudentsList', color: colors.student, bg: '#eef2ff' },
+                { label: 'Teachers', icon: 'people', screen: 'TeachersList', color: colors.teacher, bg: '#ecfdf5' },
+                { label: 'Editors', icon: 'create-outline', screen: 'EditorsList', color: colors.accent, bg: '#eef2ff' },
+                { label: 'Courses', icon: 'book', screen: 'CoursesList', color: colors.warning, bg: '#fef3c7' },
+                { label: 'Tests', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
+              ]
+            : [
+                { label: 'Students', icon: 'person', screen: 'StudentsList', color: colors.student, bg: '#eef2ff' },
+                { label: 'Teachers', icon: 'people', screen: 'TeachersList', color: colors.teacher, bg: '#ecfdf5' },
+                { label: 'Editors', icon: 'create-outline', screen: 'EditorsList', color: colors.accent, bg: '#eef2ff' },
+                { label: 'Courses', icon: 'book', screen: 'CoursesList', color: colors.warning, bg: '#fef3c7' },
+                { label: 'Tests', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
+                { label: 'Institutes', icon: 'business', screen: 'InstitutesList', color: colors.accent, bg: '#eef2ff' },
+              ]
+          );
+
+    const titleText = isEditor ? "Editor Dashboard" : (isInstitute ? "Institute Dashboard" : "Admin Dashboard");
+    const bannerTitle = isEditor ? "Editor Panel" : (isInstitute ? "Institute Panel" : "Admin Panel");
+    const bannerSub = isEditor ? "Create & manage test resources" : (isInstitute ? "Manage your institute resources" : "Manage your LMS system");
+    const badgeText = isEditor ? "Editor" : (isInstitute ? "Institute" : "Admin");
+    const badgeBg = isEditor ? '#eef2ff' : (isInstitute ? '#fffbeb' : '#fef2f2');
+    const badgeColor = isEditor ? colors.accent : (isInstitute ? colors.warning : colors.admin);
+    const badgeIcon = isEditor ? "create-outline" : (isInstitute ? "business-outline" : "shield-checkmark");
 
     return (
         <View style={styles.container}>
-            <AppHeader title={isEditor ? "Editor Dashboard" : "Admin Dashboard"} rightIcon="log-out-outline" rightAction={logout} />
+            <AppHeader title={titleText} rightIcon="log-out-outline" rightAction={logout} />
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
@@ -62,12 +80,12 @@ const AdminDashboard = ({ navigation }) => {
             >
                 {/* Welcome */}
                 <View style={styles.welcomeBanner}>
-                    <View style={[styles.adminBadge, { backgroundColor: isEditor ? '#eef2ff' : '#fef2f2' }]}>
-                        <Ionicons name={isEditor ? "create-outline" : "shield-checkmark"} size={14} color={isEditor ? colors.accent : colors.admin} />
-                        <Text style={[styles.adminBadgeText, { color: isEditor ? colors.accent : colors.admin }]}>{isEditor ? "Editor" : "Admin"}</Text>
+                    <View style={[styles.adminBadge, { backgroundColor: badgeBg }]}>
+                        <Ionicons name={badgeIcon} size={14} color={badgeColor} />
+                        <Text style={[styles.adminBadgeText, { color: badgeColor }]}>{badgeText}</Text>
                     </View>
-                    <Text style={styles.welcomeTitle}>{isEditor ? "Editor Panel" : "Admin Panel"}</Text>
-                    <Text style={styles.welcomeSub}>{isEditor ? "Create & manage test resources" : "Manage your LMS system"}</Text>
+                    <Text style={styles.welcomeTitle}>{bannerTitle}</Text>
+                    <Text style={styles.welcomeSub}>{bannerSub}</Text>
                 </View>
 
                 {/* Stat Cards */}

@@ -45,12 +45,21 @@ const admin = (req, res, next) => {
 };
 
 const adminOrEditor = (req, res, next) => {
-    if (req.user && (req.user.role === 'Admin' || req.user.role === 'Editor')) {
+    if (req.user && (req.user.role === 'Admin' || req.user.role === 'Editor' || req.user.role === 'Institute')) {
         next();
     } else {
-        console.warn(`ADMIN/EDITOR UNAUTHORIZED: ${req.method} ${req.originalUrl} - Role: ${req.user?.role}`);
-        res.status(401).json({ message: 'Not authorized as an admin or editor' });
+        console.warn(`ADMIN/EDITOR/INSTITUTE UNAUTHORIZED: ${req.method} ${req.originalUrl} - Role: ${req.user?.role}`);
+        res.status(401).json({ message: 'Not authorized as an admin, editor or institute' });
     }
 };
 
-module.exports = { protect, admin, adminOrEditor };
+const adminOrInstitute = (req, res, next) => {
+    if (req.user && (req.user.role === 'Admin' || req.user.role === 'Institute')) {
+        next();
+    } else {
+        console.warn(`ADMIN/INSTITUTE UNAUTHORIZED: ${req.method} ${req.originalUrl} - Role: ${req.user?.role}`);
+        res.status(401).json({ message: 'Not authorized as an admin or institute portal' });
+    }
+};
+
+module.exports = { protect, admin, adminOrEditor, adminOrInstitute };

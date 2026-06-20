@@ -13,8 +13,12 @@ import axios from 'axios';
 import { AppHeader, SectionCard } from '../../components/common/UIComponents';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 
 const CreateCourseScreen = ({ navigation }) => {
+    const { user } = useAuth();
+    const isInstitute = user?.role === 'Institute';
+
     const [name, setName] = useState('');
     const [code, setCode] = useState('');
     const [description, setDescription] = useState('');
@@ -31,6 +35,11 @@ const CreateCourseScreen = ({ navigation }) => {
             try {
                 const { data } = await axios.get('/setup/institutes');
                 setInstitutes(data || []);
+
+                if (isInstitute && user?.institute) {
+                    const instId = typeof user.institute === 'object' ? user.institute._id : user.institute;
+                    setSelectedInstitute(instId);
+                }
             } catch (e) {
                 console.error('Error fetching institutes:', e);
             } finally {
@@ -38,7 +47,7 @@ const CreateCourseScreen = ({ navigation }) => {
             }
         };
         fetchInstitutes();
-    }, []);
+    }, [isInstitute, user]);
 
     const handleCreateCourse = async () => {
         if (!name.trim() || !code.trim() || !selectedInstitute) {
@@ -132,41 +141,43 @@ const CreateCourseScreen = ({ navigation }) => {
                     <Text style={styles.sectionTitle}>Relations & Syllabus</Text>
 
                     {/* Institute Dropdown */}
-                    <View style={styles.formGroup}>
-                        <Text style={styles.label}>Select Institute *</Text>
-                        <TouchableOpacity
-                            style={styles.dropdownTrigger}
-                            onPress={() => setShowInstSelect(!showInstSelect)}
-                        >
-                            <Text style={selectedInstitute ? styles.dropdownSelected : styles.dropdownPlaceholder}>
-                                {institutes.find(i => i._id === selectedInstitute)?.name || 'Choose Institute'}
-                            </Text>
-                            <Ionicons name={showInstSelect ? 'chevron-up' : 'chevron-down'} size={18} color={colors.text} />
-                        </TouchableOpacity>
+                    {!isInstitute && (
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Select Institute *</Text>
+                            <TouchableOpacity
+                                style={styles.dropdownTrigger}
+                                onPress={() => setShowInstSelect(!showInstSelect)}
+                            >
+                                <Text style={selectedInstitute ? styles.dropdownSelected : styles.dropdownPlaceholder}>
+                                    {institutes.find(i => i._id === selectedInstitute)?.name || 'Choose Institute'}
+                                </Text>
+                                <Ionicons name={showInstSelect ? 'chevron-up' : 'chevron-down'} size={18} color={colors.text} />
+                            </TouchableOpacity>
 
-                        {showInstSelect && (
-                            <View style={styles.dropdownMenu}>
-                                {loadingDropdowns ? (
-                                    <ActivityIndicator size="small" color={colors.primary} style={styles.pv} />
-                                ) : institutes.length > 0 ? (
-                                    institutes.map(i => (
-                                        <TouchableOpacity
-                                            key={i._id}
-                                            style={styles.dropdownItem}
-                                            onPress={() => {
-                                                setSelectedInstitute(i._id);
-                                                setShowInstSelect(false);
-                                            }}
-                                        >
-                                            <Text style={styles.itemText}>{i.name}</Text>
-                                        </TouchableOpacity>
-                                    ))
-                                ) : (
-                                    <Text style={styles.noData}>No institutes found</Text>
-                                )}
-                            </View>
-                        )}
-                    </View>
+                            {showInstSelect && (
+                                <View style={styles.dropdownMenu}>
+                                    {loadingDropdowns ? (
+                                        <ActivityIndicator size="small" color={colors.primary} style={styles.pv} />
+                                    ) : institutes.length > 0 ? (
+                                        institutes.map(i => (
+                                            <TouchableOpacity
+                                                key={i._id}
+                                                style={styles.dropdownItem}
+                                                onPress={() => {
+                                                    setSelectedInstitute(i._id);
+                                                    setShowInstSelect(false);
+                                                }}
+                                            >
+                                                <Text style={styles.itemText}>{i.name}</Text>
+                                            </TouchableOpacity>
+                                        ))
+                                    ) : (
+                                        <Text style={styles.noData}>No institutes found</Text>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                    )}
 
                     {/* Subjects list */}
                     <View style={styles.formGroup}>
