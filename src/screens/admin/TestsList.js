@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    TextInput, RefreshControl, Alert,
+    TextInput, RefreshControl, Alert, Share,
 } from 'react-native';
+import { BASE_URL } from '../../config/api';
 import axios from 'axios';
 import { AppHeader, LoadingScreen, EmptyState, SectionCard, Badge } from '../../components/common/UIComponents';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
@@ -38,6 +39,19 @@ const TestsList = ({ navigation }) => {
                 }
             }
         ]);
+    };
+
+    const shareTest = async (test) => {
+        try {
+            const shareUrl = `${BASE_URL}${test.publishMode === 'public' ? '/public-test/' : '/take-test/'}${test._id}`;
+            await Share.share({
+                message: `Take this test:\n\nTitle: ${test.title}\nSubject: ${test.subject}\nLink: ${shareUrl}`,
+                url: shareUrl,
+                title: test.title
+            });
+        } catch (error) {
+            Alert.alert('Error', 'Could not share the test link');
+        }
     };
 
     const [activeTab, setActiveTab] = useState('connected'); // 'connected' | 'public'
@@ -117,6 +131,13 @@ const TestsList = ({ navigation }) => {
                                 activeOpacity={0.8}
                             >
                                 <Ionicons name="create-outline" size={18} color={colors.accent} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => shareTest(item)}
+                                style={styles.shareBtn}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons name="share-social-outline" size={18} color={colors.warning} />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => deleteTest(item._id)}
@@ -230,6 +251,14 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 18,
         backgroundColor: '#eef2ff',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    shareBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#fef3c7',
         alignItems: 'center',
         justifyContent: 'center',
     },
