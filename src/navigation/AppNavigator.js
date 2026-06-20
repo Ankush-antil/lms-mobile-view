@@ -24,7 +24,7 @@ import ContactStudents from '../screens/teacher/ContactStudents';
 
 // Admin
 import AdminDashboard from '../screens/admin/AdminDashboard';
-import { StudentsList, TeachersList } from '../screens/admin/UserListScreen';
+import { StudentsList, TeachersList, EditorsList } from '../screens/admin/UserListScreen';
 import TestsList from '../screens/admin/TestsList';
 import TestBuilder from '../screens/admin/TestBuilder';
 import UserDetailScreen from '../screens/admin/UserDetailScreen';
@@ -68,6 +68,7 @@ const AdminStack = () => (
         <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
         <Stack.Screen name="StudentsList" component={StudentsList} />
         <Stack.Screen name="TeachersList" component={TeachersList} />
+        <Stack.Screen name="EditorsList" component={EditorsList} />
         <Stack.Screen name="CoursesList" component={CoursesList} />
         <Stack.Screen name="InstitutesList" component={InstitutesList} />
         <Stack.Screen name="TestsList" component={TestsList} />

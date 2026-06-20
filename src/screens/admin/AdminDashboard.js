@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    FlatList, RefreshControl, TextInput,
+    FlatList, RefreshControl, TextInput, Dimensions,
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 const AdminDashboard = ({ navigation }) => {
     const { user, logout } = useAuth();
     const isEditor = user?.role === 'Editor';
+    
+    const { width: screenWidth } = Dimensions.get('window');
+    const cardWidth = (screenWidth - spacing.md * 2 - 16) / 3;
     
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -42,6 +45,7 @@ const AdminDashboard = ({ navigation }) => {
         : [
             { label: 'Students', icon: 'person', screen: 'StudentsList', color: colors.student, bg: '#eef2ff' },
             { label: 'Teachers', icon: 'people', screen: 'TeachersList', color: colors.teacher, bg: '#ecfdf5' },
+            { label: 'Editors', icon: 'create-outline', screen: 'EditorsList', color: colors.accent, bg: '#eef2ff' },
             { label: 'Courses', icon: 'book', screen: 'CoursesList', color: colors.warning, bg: '#fef3c7' },
             { label: 'Tests', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
             { label: 'Institutes', icon: 'business', screen: 'InstitutesList', color: colors.accent, bg: '#eef2ff' },
@@ -68,16 +72,28 @@ const AdminDashboard = ({ navigation }) => {
 
                 {/* Stat Cards */}
                 {!isEditor && (
-                    <View style={styles.statsGrid}>
-                        <View style={styles.statsRow}>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false} 
+                        style={styles.statsHorizontal}
+                        contentContainerStyle={styles.statsHorizontalContent}
+                    >
+                        <View style={[styles.statCardWrapper, { width: cardWidth }]}>
                             <StatCard title="Students" value={stats?.students} icon="person" color={colors.student} bg="#eef2ff" />
+                        </View>
+                        <View style={[styles.statCardWrapper, { width: cardWidth }]}>
                             <StatCard title="Teachers" value={stats?.teachers} icon="people" color={colors.teacher} bg="#ecfdf5" />
                         </View>
-                        <View style={styles.statsRow}>
+                        <View style={[styles.statCardWrapper, { width: cardWidth }]}>
+                            <StatCard title="Editors" value={stats?.editors} icon="create-outline" color={colors.accent} bg="#eef2ff" />
+                        </View>
+                        <View style={[styles.statCardWrapper, { width: cardWidth }]}>
                             <StatCard title="Tests" value={stats?.tests} icon="document-text" color={colors.admin} bg="#fef2f2" />
+                        </View>
+                        <View style={[styles.statCardWrapper, { width: cardWidth }]}>
                             <StatCard title="Courses" value={stats?.courses} icon="book" color={colors.warning} bg="#fef3c7" />
                         </View>
-                    </View>
+                    </ScrollView>
                 )}
 
                 {/* Quick Links */}
@@ -125,8 +141,15 @@ const styles = StyleSheet.create({
     adminBadgeText: { fontSize: fontSizes.xs, fontWeight: '800', textTransform: 'uppercase' },
     welcomeTitle: { fontSize: fontSizes.xxl, fontWeight: '900', color: colors.text },
     welcomeSub: { fontSize: fontSizes.sm, color: colors.textMuted },
-    statsGrid: { gap: 8, marginBottom: spacing.md },
-    statsRow: { flexDirection: 'row', gap: 8 },
+    statsHorizontal: {
+        marginBottom: spacing.md,
+    },
+    statsHorizontalContent: {
+        paddingHorizontal: 2,
+    },
+    statCardWrapper: {
+        marginRight: 8,
+    },
     sectionTitle: { fontSize: fontSizes.lg, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
     quickLinks: {},
     quickLink: {

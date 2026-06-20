@@ -117,6 +117,20 @@ export const TeachersList = (props) => (
     />
 );
 
+// Editors List
+export const EditorsList = (props) => (
+    <UserListScreen
+        {...props}
+        endpoint="/users?role=Editor"
+        title="Editors"
+        role="Editor"
+        color={colors.accent}
+        bg="#eef2ff"
+        badgeField={null}
+        navigateTo="UserDetail"
+    />
+);
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
     searchBar: {
