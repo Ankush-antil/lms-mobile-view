@@ -73,7 +73,7 @@ const CreateUserScreen = ({ navigation, route }) => {
             if (role === 'Student') {
                 payload.course = selectedCourse || null;
                 payload.subject = studentSubject.trim();
-            } else {
+            } else if (role === 'Teacher') {
                 payload.course = selectedCourse || null;
                 payload.subjects = teacherSubjects.trim(); // Controller expects comma-separated or array
             }
@@ -89,7 +89,7 @@ const CreateUserScreen = ({ navigation, route }) => {
         }
     };
 
-    const activeColor = role === 'Student' ? colors.student : colors.teacher;
+    const activeColor = role === 'Student' ? colors.student : (role === 'Teacher' ? colors.teacher : colors.accent);
 
     return (
         <View style={styles.container}>
@@ -115,6 +115,15 @@ const CreateUserScreen = ({ navigation, route }) => {
                         onPress={() => setRole('Teacher')}
                     >
                         <Text style={[styles.roleTabText, role === 'Teacher' && styles.activeTabText]}>Teacher</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.roleTab,
+                            role === 'Editor' && { backgroundColor: colors.accent, borderColor: colors.accent }
+                        ]}
+                        onPress={() => setRole('Editor')}
+                    >
+                        <Text style={[styles.roleTabText, role === 'Editor' && styles.activeTabText]}>Editor</Text>
                     </TouchableOpacity>
                 </View>
 

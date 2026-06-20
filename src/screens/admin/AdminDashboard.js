@@ -10,12 +10,19 @@ import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
 const AdminDashboard = ({ navigation }) => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
+    const isEditor = user?.role === 'Editor';
+    
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchData = async () => {
+        if (isEditor) {
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
         try {
             const { data } = await axios.get('/dashboard/stats');
             setStats(data.stats);
@@ -27,44 +34,51 @@ const AdminDashboard = ({ navigation }) => {
 
     if (loading) return <LoadingScreen />;
 
-    const quickLinks = [
-        { label: 'Students', icon: 'person', screen: 'StudentsList', color: colors.student, bg: '#eef2ff' },
-        { label: 'Teachers', icon: 'people', screen: 'TeachersList', color: colors.teacher, bg: '#ecfdf5' },
-        { label: 'Courses', icon: 'book', screen: 'CoursesList', color: colors.warning, bg: '#fef3c7' },
-        { label: 'Tests', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
-        { label: 'Institutes', icon: 'business', screen: 'InstitutesList', color: colors.accent, bg: '#eef2ff' },
-    ];
+    const quickLinks = isEditor 
+        ? [
+            { label: 'Tests List', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
+            { label: 'Test Builder', icon: 'add-circle', screen: 'TestBuilder', color: colors.success, bg: '#ecfdf5' },
+          ]
+        : [
+            { label: 'Students', icon: 'person', screen: 'StudentsList', color: colors.student, bg: '#eef2ff' },
+            { label: 'Teachers', icon: 'people', screen: 'TeachersList', color: colors.teacher, bg: '#ecfdf5' },
+            { label: 'Courses', icon: 'book', screen: 'CoursesList', color: colors.warning, bg: '#fef3c7' },
+            { label: 'Tests', icon: 'document-text', screen: 'TestsList', color: colors.admin, bg: '#fef2f2' },
+            { label: 'Institutes', icon: 'business', screen: 'InstitutesList', color: colors.accent, bg: '#eef2ff' },
+          ];
 
     return (
         <View style={styles.container}>
-            <AppHeader title="Admin Dashboard" rightIcon="log-out-outline" rightAction={logout} />
+            <AppHeader title={isEditor ? "Editor Dashboard" : "Admin Dashboard"} rightIcon="log-out-outline" rightAction={logout} />
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.admin} />}
+                refreshControl={isEditor ? undefined : <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.admin} />}
             >
                 {/* Welcome */}
                 <View style={styles.welcomeBanner}>
-                    <View style={[styles.adminBadge, { backgroundColor: '#fef2f2' }]}>
-                        <Ionicons name="shield-checkmark" size={14} color={colors.admin} />
-                        <Text style={[styles.adminBadgeText, { color: colors.admin }]}>Admin</Text>
+                    <View style={[styles.adminBadge, { backgroundColor: isEditor ? '#eef2ff' : '#fef2f2' }]}>
+                        <Ionicons name={isEditor ? "create-outline" : "shield-checkmark"} size={14} color={isEditor ? colors.accent : colors.admin} />
+                        <Text style={[styles.adminBadgeText, { color: isEditor ? colors.accent : colors.admin }]}>{isEditor ? "Editor" : "Admin"}</Text>
                     </View>
-                    <Text style={styles.welcomeTitle}>Admin Panel</Text>
-                    <Text style={styles.welcomeSub}>Manage your LMS system</Text>
+                    <Text style={styles.welcomeTitle}>{isEditor ? "Editor Panel" : "Admin Panel"}</Text>
+                    <Text style={styles.welcomeSub}>{isEditor ? "Create & manage test resources" : "Manage your LMS system"}</Text>
                 </View>
 
                 {/* Stat Cards */}
-                <View style={styles.statsGrid}>
-                    <View style={styles.statsRow}>
-                        <StatCard title="Students" value={stats?.students} icon="person" color={colors.student} bg="#eef2ff" />
-                        <StatCard title="Teachers" value={stats?.teachers} icon="people" color={colors.teacher} bg="#ecfdf5" />
+                {!isEditor && (
+                    <View style={styles.statsGrid}>
+                        <View style={styles.statsRow}>
+                            <StatCard title="Students" value={stats?.students} icon="person" color={colors.student} bg="#eef2ff" />
+                            <StatCard title="Teachers" value={stats?.teachers} icon="people" color={colors.teacher} bg="#ecfdf5" />
+                        </View>
+                        <View style={styles.statsRow}>
+                            <StatCard title="Tests" value={stats?.tests} icon="document-text" color={colors.admin} bg="#fef2f2" />
+                            <StatCard title="Courses" value={stats?.courses} icon="book" color={colors.warning} bg="#fef3c7" />
+                        </View>
                     </View>
-                    <View style={styles.statsRow}>
-                        <StatCard title="Tests" value={stats?.tests} icon="document-text" color={colors.admin} bg="#fef2f2" />
-                        <StatCard title="Courses" value={stats?.courses} icon="book" color={colors.warning} bg="#fef3c7" />
-                    </View>
-                </View>
+                )}
 
                 {/* Quick Links */}
                 <SectionCard>

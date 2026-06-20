@@ -107,13 +107,19 @@ const evaluateSubmission = asyncHandler(async (req, res) => {
                 if (a.videoData !== undefined) {
                     submission.answers[i].videoData = a.videoData;
                 }
-                // If teacher provided feedback, append it to the conversation
+                // If teacher provided feedback, append it to the conversation only if it is different from the last teacher message
                 if (a.feedback) {
-                    submission.answers[i].conversation.push({
-                        role: 'Teacher',
-                        message: a.feedback,
-                        timestamp: new Date()
-                    });
+                    const conversation = submission.answers[i].conversation || [];
+                    const lastTeacherMsg = [...conversation]
+                        .reverse()
+                        .find(m => m.role === 'Teacher');
+                    if (!lastTeacherMsg || lastTeacherMsg.message !== a.feedback) {
+                        submission.answers[i].conversation.push({
+                            role: 'Teacher',
+                            message: a.feedback,
+                            timestamp: new Date()
+                        });
+                    }
                 }
             }
         });

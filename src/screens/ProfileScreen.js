@@ -24,7 +24,7 @@ const ProfileScreen = ({ navigation }) => {
             const { data } = await axios.get('/users/profile');
             setProfile(data);
             setName(data.name || '');
-            setPhone(data.phone || '');
+            setPhone(data.mobileNumber || '');
         } catch (e) { console.error(e); }
         finally { setLoading(false); setRefreshing(false); }
     };
@@ -34,7 +34,7 @@ const ProfileScreen = ({ navigation }) => {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await axios.put('/users/profile', { name, phone });
+            await axios.put('/users/profile', { name, mobileNumber: phone });
             await fetchProfile();
             await refreshUser();
             setEditing(false);
@@ -120,7 +120,7 @@ const ProfileScreen = ({ navigation }) => {
                                     keyboardType="phone-pad"
                                 />
                             ) : (
-                                <Text style={styles.infoValue}>{profile?.phone || 'Not set'}</Text>
+                                <Text style={styles.infoValue}>{profile?.mobileNumber || 'Not set'}</Text>
                             )}
                         </View>
                     </View>

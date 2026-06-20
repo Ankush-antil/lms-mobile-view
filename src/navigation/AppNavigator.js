@@ -106,8 +106,8 @@ const AppNavigator = () => {
                 ) : user.role === 'Teacher' ? (
                     // Teacher
                     <Stack.Screen name="TeacherRoot" component={TeacherStack} />
-                ) : user.role === 'Admin' ? (
-                    // Admin
+                ) : (user.role === 'Admin' || user.role === 'Editor') ? (
+                    // Admin/Editor
                     <Stack.Screen name="AdminRoot" component={AdminStack} />
                 ) : (
                     // Fallback

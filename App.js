@@ -66,9 +66,9 @@ export default function App() {
                     <View style={styles.updateContainer}>
                         <ActivityIndicator size="large" color="#10b981" />
                         <Text style={styles.titleText}>
-                            {updateStatus === 'checking' && 'Checking for updates...'}
-                            {updateStatus === 'downloading' && 'Downloading new update...'}
-                            {updateStatus === 'restarting' && 'Applying update & restarting...'}
+                            {updateStatus === 'checking' && 'Checking for app updates...'}
+                            {updateStatus === 'downloading' && 'Downloading new app update...'}
+                            {updateStatus === 'restarting' && 'Applying updates & restarting...'}
                         </Text>
                         <Text style={styles.subtitleText}>
                             {updateStatus === 'downloading' && 'Please wait while we update your app files.'}

@@ -44,4 +44,13 @@ const admin = (req, res, next) => {
     }
 };
 
-module.exports = { protect, admin };
+const adminOrEditor = (req, res, next) => {
+    if (req.user && (req.user.role === 'Admin' || req.user.role === 'Editor')) {
+        next();
+    } else {
+        console.warn(`ADMIN/EDITOR UNAUTHORIZED: ${req.method} ${req.originalUrl} - Role: ${req.user?.role}`);
+        res.status(401).json({ message: 'Not authorized as an admin or editor' });
+    }
+};
+
+module.exports = { protect, admin, adminOrEditor };

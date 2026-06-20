@@ -54,6 +54,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
         user.name = req.body.name || user.name;
         user.email = req.body.email || user.email;
         user.avatar = req.body.avatar !== undefined ? req.body.avatar : user.avatar;
+        user.mobileNumber = req.body.mobileNumber !== undefined ? req.body.mobileNumber : user.mobileNumber;
 
         if (req.body.password && req.body.password.trim() !== '') {
             user.password = req.body.password;
@@ -66,7 +67,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
             name: updatedUser.name,
             email: updatedUser.email,
             role: updatedUser.role,
-            avatar: updatedUser.avatar
+            avatar: updatedUser.avatar,
+            mobileNumber: updatedUser.mobileNumber
         });
     } else {
         res.status(404);
