@@ -29,7 +29,7 @@ const AdminDashboard = ({ navigation }) => {
         try {
             const { data } = await axios.get('/dashboard/stats');
             setStats(data.stats);
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn('Fetch stats error:', e.message); }
         finally { setLoading(false); setRefreshing(false); }
     };
 

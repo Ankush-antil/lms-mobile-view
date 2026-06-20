@@ -104,7 +104,7 @@ const TeacherDashboard = ({ navigation }) => {
             setProfile(profileRes.data);
             setStudents(studentsRes.data);
         } catch (e) {
-            console.error(e);
+            console.warn('Fetch teacher stats error:', e.message);
         } finally {
             setLoading(false);
             setRefreshing(false);

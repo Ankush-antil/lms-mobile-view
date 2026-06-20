@@ -48,6 +48,23 @@ export const AuthProvider = ({ children }) => {
         fetchUser();
     }, []);
 
+    useEffect(() => {
+        const responseInterceptor = axios.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                if (error.response?.status === 401) {
+                    await AsyncStorage.removeItem('authToken');
+                    setUser(null);
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        return () => {
+            axios.interceptors.response.eject(responseInterceptor);
+        };
+    }, []);
+
     const login = async (email, password) => {
         const { data } = await axios.post('/auth/login', { email, password });
         if (data.token) {

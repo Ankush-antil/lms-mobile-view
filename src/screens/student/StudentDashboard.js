@@ -36,7 +36,7 @@ const StudentDashboard = ({ navigation }) => {
             setSubmissions(subsRes.data);
             setMissedCalls(missedRes.data);
         } catch (error) {
-            console.error('Dashboard fetch error:', error);
+            console.warn('Dashboard fetch error:', error.message);
         } finally {
             setLoading(false);
             setRefreshing(false);
