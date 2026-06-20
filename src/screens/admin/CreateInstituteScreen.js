@@ -19,11 +19,12 @@ const CreateInstituteScreen = ({ navigation }) => {
     const [code, setCode] = useState('');
     const [address, setAddress] = useState('');
     const [contactEmail, setContactEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     const handleCreateInstitute = async () => {
-        if (!name.trim() || !code.trim() || !contactEmail.trim()) {
-            Alert.alert('Required Fields', 'Institute Name, Institute Code aur Contact Email mandatory hain');
+        if (!name.trim() || !code.trim() || !contactEmail.trim() || !password.trim()) {
+            Alert.alert('Required Fields', 'Institute Name, Code, Contact Email, aur Password mandatory hain');
             return;
         }
 
@@ -34,6 +35,7 @@ const CreateInstituteScreen = ({ navigation }) => {
                 code: code.trim().toUpperCase(),
                 address: address.trim(),
                 contactEmail: contactEmail.trim().toLowerCase(),
+                password: password,
             };
 
             await axios.post('/setup/institutes', payload);
@@ -99,6 +101,22 @@ const CreateInstituteScreen = ({ navigation }) => {
                                 onChangeText={setContactEmail}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
+                            />
+                        </View>
+                    </View>
+
+                    {/* Password */}
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>Portal Password *</Text>
+                        <View style={styles.inputWrapper}>
+                            <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter portal password"
+                                placeholderTextColor={colors.textMuted}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry
                             />
                         </View>
                     </View>
