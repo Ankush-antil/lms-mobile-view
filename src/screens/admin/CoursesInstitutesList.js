@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
     View, Text, StyleSheet, FlatList, RefreshControl,
+    TextInput, TouchableOpacity,
 } from 'react-native';
 import axios from 'axios';
 import { AppHeader, LoadingScreen, EmptyState, Badge } from '../../components/common/UIComponents';
@@ -11,6 +12,7 @@ const CoursesList = ({ navigation }) => {
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [search, setSearch] = useState('');
 
     const fetchData = async () => {
         try {
@@ -22,6 +24,12 @@ const CoursesList = ({ navigation }) => {
 
     useEffect(() => { fetchData(); }, []);
 
+    const filtered = courses.filter(c =>
+        c.name?.toLowerCase().includes(search.toLowerCase()) ||
+        c.description?.toLowerCase().includes(search.toLowerCase()) ||
+        c.institute?.name?.toLowerCase().includes(search.toLowerCase())
+    );
+
     if (loading) return <LoadingScreen />;
 
     return (
@@ -32,9 +40,25 @@ const CoursesList = ({ navigation }) => {
                 rightIcon="add-outline"
                 rightAction={() => navigation.navigate('CreateCourse')}
             />
-            <Text style={styles.countText}>{courses.length} Courses</Text>
+            {/* Search Bar */}
+            <View style={styles.searchBar}>
+                <Ionicons name="search" size={16} color={colors.textMuted} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search courses..."
+                    placeholderTextColor={colors.textMuted}
+                    value={search}
+                    onChangeText={setSearch}
+                />
+                {search ? (
+                    <TouchableOpacity onPress={() => setSearch('')}>
+                        <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+            <Text style={styles.countText}>{filtered.length} Courses</Text>
             <FlatList
-                data={courses}
+                data={filtered}
                 keyExtractor={item => item._id}
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={false}
@@ -63,6 +87,7 @@ const InstitutesList = ({ navigation }) => {
     const [institutes, setInstitutes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [search, setSearch] = useState('');
 
     const fetchData = async () => {
         try {
@@ -74,6 +99,12 @@ const InstitutesList = ({ navigation }) => {
 
     useEffect(() => { fetchData(); }, []);
 
+    const filtered = institutes.filter(i =>
+        i.name?.toLowerCase().includes(search.toLowerCase()) ||
+        i.address?.toLowerCase().includes(search.toLowerCase()) ||
+        i.contactEmail?.toLowerCase().includes(search.toLowerCase())
+    );
+
     if (loading) return <LoadingScreen />;
 
     return (
@@ -84,9 +115,25 @@ const InstitutesList = ({ navigation }) => {
                 rightIcon="add-outline"
                 rightAction={() => navigation.navigate('CreateInstitute')}
             />
-            <Text style={styles.countText}>{institutes.length} Institutes</Text>
+            {/* Search Bar */}
+            <View style={styles.searchBar}>
+                <Ionicons name="search" size={16} color={colors.textMuted} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search institutes..."
+                    placeholderTextColor={colors.textMuted}
+                    value={search}
+                    onChangeText={setSearch}
+                />
+                {search ? (
+                    <TouchableOpacity onPress={() => setSearch('')}>
+                        <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+            <Text style={styles.countText}>{filtered.length} Institutes</Text>
             <FlatList
-                data={institutes}
+                data={filtered}
                 keyExtractor={item => item._id}
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={false}
@@ -110,12 +157,27 @@ const InstitutesList = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: colors.bgCard,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        marginBottom: spacing.sm,
+        paddingHorizontal: spacing.md,
+        height: 44,
+        borderRadius: borderRadius.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    searchInput: { flex: 1, fontSize: fontSizes.md, color: colors.text },
     countText: {
         fontSize: fontSizes.xs,
         color: colors.textMuted,
         fontWeight: '600',
         paddingHorizontal: spacing.md,
-        paddingTop: spacing.md,
+        paddingTop: spacing.sm,
         paddingBottom: spacing.sm,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
