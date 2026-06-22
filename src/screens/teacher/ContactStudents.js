@@ -45,6 +45,7 @@ const ContactStudents = ({ navigation }) => {
     const [contactType, setContactType] = useState(null); // 'chat' | 'audio' | 'videocam' | null
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
+    const [editingMessage, setEditingMessage] = useState(null);
 
     const filteredStudents = students.filter(student =>
         student.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -130,24 +131,67 @@ const ContactStudents = ({ navigation }) => {
                 }
             };
 
+            const handleMessageEdited = (msg) => {
+                const isMsgFromActive = activeContact && 
+                    (msg.sender?._id === activeContact._id || msg.sender === activeContact._id ||
+                     msg.receiver?._id === activeContact._id || msg.receiver === activeContact._id);
+                
+                if (isMsgFromActive) {
+                    setChatMessages(prev => prev.map(m => m._id === msg._id ? msg : m));
+                }
+            };
+
             socket.on('new-message', handleNewMessage);
             socket.on('message-sent', handleMessageSent);
+            socket.on('message-edited', handleMessageEdited);
 
             return () => {
                 socket.off('new-message', handleNewMessage);
                 socket.off('message-sent', handleMessageSent);
+                socket.off('message-edited', handleMessageEdited);
             };
         }
     }, [socket, activeContact]);
+
+    const handleLongPressMsg = (msg) => {
+        const isSelf = msg.sender?._id === user?._id || msg.sender === user?._id;
+        if (!isSelf) return;
+
+        Alert.alert(
+            'Message Options',
+            'Choose an action',
+            [
+                {
+                    text: 'Edit Message',
+                    onPress: () => {
+                        setEditingMessage(msg);
+                        setChatInput(msg.text);
+                    }
+                },
+                {
+                    text: 'Cancel',
+                    style: 'cancel'
+                }
+            ]
+        );
+    };
 
     const handleSendMsg = () => {
         if (!chatInput.trim() || !activeContact) return;
         
         if (socket && socket.connected) {
-            socket.emit('send-message', {
-                receiverId: activeContact._id,
-                text: chatInput.trim()
-            });
+            if (editingMessage) {
+                socket.emit('edit-message', {
+                    messageId: editingMessage._id,
+                    newText: chatInput.trim()
+                });
+                setEditingMessage(null);
+            } else {
+                socket.emit('send-message', {
+                    receiverId: activeContact._id,
+                    text: chatInput.trim()
+                });
+            }
             setChatInput('');
         } else {
             console.warn('[CHAT] Socket offline. Unable to send real-time message.');
@@ -470,7 +514,9 @@ const ContactStudents = ({ navigation }) => {
                                                 </View>
                                             )}
 
-                                            <View 
+                                            <TouchableOpacity 
+                                                activeOpacity={0.9}
+                                                onLongPress={() => handleLongPressMsg(msg)}
                                                 style={[
                                                     styles.msgBubble, 
                                                     isSelf ? styles.msgBubbleSelf : styles.msgBubblePeer
@@ -479,7 +525,19 @@ const ContactStudents = ({ navigation }) => {
                                                 <Text style={isSelf ? styles.msgTextSelf : styles.msgTextPeer}>
                                                     {msg.text}
                                                 </Text>
-                                            </View>
+                                                {msg.isEdited && (
+                                                    <View style={styles.editedIndicatorRow}>
+                                                        <Text style={[styles.editedLabel, isSelf ? styles.editedLabelSelf : styles.editedLabelPeer]}>
+                                                            edited
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                {isSelf && msg.isEdited && msg.originalText && (
+                                                    <Text style={styles.originalTextPreview}>
+                                                        Prev: "{msg.originalText}"
+                                                    </Text>
+                                                )}
+                                            </TouchableOpacity>
 
                                             {/* Show Avatar next to self message */}
                                             {isSelf && (
@@ -494,6 +552,28 @@ const ContactStudents = ({ navigation }) => {
                                 })
                             )}
                         </ScrollView>
+
+                        {/* Editing Banner */}
+                        {editingMessage && (
+                            <View style={styles.editingBanner}>
+                                <View style={styles.editingBannerLeft}>
+                                    <Ionicons name="create-outline" size={18} color={colors.accent} style={{ marginRight: 6 }} />
+                                    <Text style={styles.editingBannerText} numberOfLines={1}>
+                                        Editing: "{editingMessage.text}"
+                                    </Text>
+                                </View>
+                                <TouchableOpacity 
+                                    onPress={() => {
+                                        setEditingMessage(null);
+                                        setChatInput('');
+                                    }}
+                                    style={styles.cancelEditBtn}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
 
                         {/* Input Bar */}
                         <View style={styles.chatInputBar}>
@@ -994,6 +1074,53 @@ const styles = StyleSheet.create({
         fontSize: fontSizes.xs,
         fontWeight: 'bold',
         textTransform: 'uppercase',
+    },
+    editingBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+    },
+    editingBannerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginRight: 10,
+    },
+    editingBannerText: {
+        fontSize: fontSizes.xs + 1,
+        color: colors.textSecondary,
+        fontStyle: 'italic',
+    },
+    cancelEditBtn: {
+        padding: 2,
+    },
+    editedIndicatorRow: {
+        alignSelf: 'flex-end',
+        marginTop: 2,
+    },
+    editedLabel: {
+        fontSize: 9,
+        fontWeight: '600',
+    },
+    editedLabelSelf: {
+        color: colors.textMuted,
+    },
+    editedLabelPeer: {
+        color: 'rgba(255,255,255,0.6)',
+    },
+    originalTextPreview: {
+        fontSize: fontSizes.xs - 2,
+        color: '#64748b',
+        fontStyle: 'italic',
+        marginTop: 4,
+        borderTopWidth: 0.5,
+        borderTopColor: '#cbd5e1',
+        paddingTop: 4,
     },
 });
 

@@ -18,6 +18,13 @@ const messageSchema = new mongoose.Schema({
     isRead: {
         type: Boolean,
         default: false
+    },
+    isEdited: {
+        type: Boolean,
+        default: false
+    },
+    originalText: {
+        type: String
     }
 }, {
     timestamps: true
