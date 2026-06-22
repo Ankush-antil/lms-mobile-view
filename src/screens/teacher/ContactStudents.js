@@ -424,7 +424,14 @@ const ContactStudents = ({ navigation }) => {
                                     style={styles.chatHeaderActionBtn}
                                     activeOpacity={0.75}
                                 >
-                                    <Ionicons name="ellipsis-horizontal" size={24} color={colors.textSecondary} />
+                                    <Ionicons name="call" size={20} color={colors.accent} />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    onPress={showCallingComingSoon}
+                                    style={styles.chatHeaderActionBtn}
+                                    activeOpacity={0.75}
+                                >
+                                    <Ionicons name="videocam" size={21} color={colors.accent} />
                                 </TouchableOpacity>
                             </View>
                         </View>

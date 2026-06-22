@@ -18,6 +18,7 @@ import { Audio } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import { colors, spacing, fontSizes, borderRadius } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { BASE_URL } from '../config/api';
 
 const SocketContext = createContext();
 
@@ -99,8 +100,8 @@ export const SocketProvider = ({ children }) => {
 
             // Load audio from Render backend server statically
             const url = type === 'dialing' 
-                ? 'https://lms-mobile-view.onrender.com/uploads/dialing.mp3' 
-                : 'https://lms-mobile-view.onrender.com/uploads/ringtone.mp3';
+                ? `${BASE_URL}/uploads/dialing.mp3` 
+                : `${BASE_URL}/uploads/ringtone.mp3`;
 
             const { sound } = await Audio.Sound.createAsync(
                 { uri: url },
@@ -294,7 +295,7 @@ export const SocketProvider = ({ children }) => {
         }
 
         console.log('[SOCKET] Connecting to server with user:', user.name);
-        const s = io('https://lms-mobile-view.onrender.com', {
+        const s = io(BASE_URL, {
             transports: ['websocket'],
             forceNew: true,
             autoConnect: true
