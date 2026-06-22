@@ -206,7 +206,12 @@ const TeacherDashboard = ({ navigation }) => {
                 <SectionCard>
                     <Text style={styles.sectionTitle}>My Students ({students.length})</Text>
                     {students.length > 0 ? students.slice(0, 5).map(student => (
-                        <View key={student._id} style={styles.studentItem}>
+                        <TouchableOpacity 
+                            key={student._id} 
+                            style={styles.studentItem}
+                            onPress={() => navigation.navigate('ContactStudents')}
+                            activeOpacity={0.7}
+                        >
                             <View style={[styles.studentAvatar, { backgroundColor: colors.teacher }]}>
                                 <Text style={styles.studentAvatarText}>{student.name?.[0]}</Text>
                             </View>
@@ -214,39 +219,8 @@ const TeacherDashboard = ({ navigation }) => {
                                 <Text style={styles.studentName}>{student.name}</Text>
                                 <Text style={styles.studentEmail}>{student.email}</Text>
                             </View>
-                            <View style={styles.contactActions}>
-                                <TouchableOpacity 
-                                    style={[styles.contactCircleBtn, { backgroundColor: '#eef2ff' }]}
-                                    onPress={() => {
-                                        setActiveContact(student);
-                                        setContactType('chat');
-                                    }}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="chatbubble-ellipses" size={16} color={colors.accent} />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.contactCircleBtn, { backgroundColor: '#ecfdf5' }]}
-                                    onPress={() => {
-                                        setActiveContact(student);
-                                        setContactType('audio');
-                                    }}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="call" size={16} color={colors.teacher} />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.contactCircleBtn, { backgroundColor: '#fff7ed' }]}
-                                    onPress={() => {
-                                        setActiveContact(student);
-                                        setContactType('videocam');
-                                    }}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="videocam" size={16} color="#f97316" />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
+                            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginRight: 4 }} />
+                        </TouchableOpacity>
                     )) : (
                         <EmptyState icon="people-outline" title="No students assigned" />
                     )}

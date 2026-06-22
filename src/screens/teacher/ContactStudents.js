@@ -32,7 +32,7 @@ const ContactStudents = ({ navigation }) => {
     const [profile, setProfile] = useState(null);
     const [students, setStudents] = useState([]);
     const [callHistory, setCallHistory] = useState([]);
-    const [activeTab, setActiveTab] = useState('recents'); // 'recents' | 'contacts'
+    const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' | 'recents'
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -189,7 +189,7 @@ const ContactStudents = ({ navigation }) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
                         <Ionicons name="arrow-back" size={24} color={colors.white} />
                     </TouchableOpacity>
-                    <Text style={styles.waHeaderTitle}>Calls</Text>
+                    <Text style={styles.waHeaderTitle}>{activeTab === 'contacts' ? 'Students' : 'Calls'}</Text>
                     <View style={styles.waHeaderRight}>
                         <TouchableOpacity onPress={() => setShowSearch(true)} activeOpacity={0.7} style={styles.headerIconBtn}>
                             <Ionicons name="search" size={22} color={colors.white} />
@@ -204,18 +204,18 @@ const ContactStudents = ({ navigation }) => {
             {/* Segment Tab Bar */}
             <View style={styles.tabBar}>
                 <TouchableOpacity
-                    style={[styles.tabButton, activeTab === 'recents' && styles.activeTabButton]}
-                    onPress={() => setActiveTab('recents')}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.tabText, activeTab === 'recents' && styles.activeTabText]}>Recent Calls</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
                     style={[styles.tabButton, activeTab === 'contacts' && styles.activeTabButton]}
                     onPress={() => setActiveTab('contacts')}
                     activeOpacity={0.7}
                 >
                     <Text style={[styles.tabText, activeTab === 'contacts' && styles.activeTabText]}>Students</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeTab === 'recents' && styles.activeTabButton]}
+                    onPress={() => setActiveTab('recents')}
+                    activeOpacity={0.7}
+                >
+                    <Text style={[styles.tabText, activeTab === 'recents' && styles.activeTabText]}>Recent Calls</Text>
                 </TouchableOpacity>
             </View>
 
