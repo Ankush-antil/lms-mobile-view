@@ -12,7 +12,8 @@ import {
     Platform,
     Image,
     ActivityIndicator,
-    ScrollView
+    ScrollView,
+    Alert
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
@@ -24,6 +25,10 @@ const ContactStudents = ({ navigation }) => {
     const { user } = useAuth();
     const { callUser, onlineUsers, socket } = useSocket();
     const chatScrollViewRef = React.useRef(null);
+    
+    const showCallingComingSoon = () => {
+        Alert.alert('Coming Soon', 'Audio and Video calling features are coming soon.');
+    };
     const [profile, setProfile] = useState(null);
     const [students, setStudents] = useState([]);
     const [callHistory, setCallHistory] = useState([]);
@@ -286,9 +291,7 @@ const ContactStudents = ({ navigation }) => {
                                     {peer?._id && (
                                         <TouchableOpacity 
                                             style={[styles.waActionBtn, { marginRight: 8 }]}
-                                            onPress={() => {
-                                                callUser(peer._id, peerName, peerRole, item.callType);
-                                            }}
+                                            onPress={showCallingComingSoon}
                                             activeOpacity={0.7}
                                         >
                                             <Ionicons 
@@ -347,9 +350,7 @@ const ContactStudents = ({ navigation }) => {
                                     </TouchableOpacity>
                                     <TouchableOpacity 
                                         style={styles.waActionBtn}
-                                        onPress={() => {
-                                            callUser(item._id, item.name, 'Student', 'audio');
-                                        }}
+                                        onPress={showCallingComingSoon}
                                         activeOpacity={0.75}
                                     >
                                         <Ionicons 
@@ -360,9 +361,7 @@ const ContactStudents = ({ navigation }) => {
                                     </TouchableOpacity>
                                     <TouchableOpacity 
                                         style={styles.waActionBtn}
-                                        onPress={() => {
-                                            callUser(item._id, item.name, 'Student', 'video');
-                                        }}
+                                        onPress={showCallingComingSoon}
                                         activeOpacity={0.75}
                                     >
                                         <Ionicons 
@@ -411,24 +410,21 @@ const ContactStudents = ({ navigation }) => {
                             </TouchableOpacity>
 
                             <View style={styles.chatHeaderInfo}>
-                                <View style={[styles.chatStatusIndicator, { backgroundColor: onlineUsers?.includes(activeContact._id) ? colors.success : '#cbd5e1' }]} />
+                                <Text style={{ 
+                                    fontSize: 16, 
+                                    color: onlineUsers?.includes(activeContact._id) ? '#10b981' : '#cbd5e1', 
+                                    marginRight: 4 
+                                }}>●</Text>
                                 <Text style={styles.chatHeaderTitle}>{activeContact.name.toUpperCase()}</Text>
                             </View>
 
                             <View style={styles.chatHeaderActions}>
                                 <TouchableOpacity 
-                                    onPress={() => callUser(activeContact._id, activeContact.name, 'Student', 'audio')}
+                                    onPress={showCallingComingSoon}
                                     style={styles.chatHeaderActionBtn}
                                     activeOpacity={0.75}
                                 >
-                                    <Ionicons name="call" size={20} color={colors.accent} />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    onPress={() => callUser(activeContact._id, activeContact.name, 'Student', 'video')}
-                                    style={styles.chatHeaderActionBtn}
-                                    activeOpacity={0.75}
-                                >
-                                    <Ionicons name="videocam" size={21} color={colors.accent} />
+                                    <Ionicons name="ellipsis-horizontal" size={24} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             </View>
                         </View>
