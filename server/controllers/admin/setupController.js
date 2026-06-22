@@ -56,16 +56,45 @@ const getInstituteDetails = asyncHandler(async (req, res) => {
 // @route   PUT /api/setup/institutes/:id
 // @access  Private/Admin
 const updateInstitute = asyncHandler(async (req, res) => {
-    const { name, code, address, contactEmail } = req.body;
+    const { name, code, address, contactEmail, password } = req.body;
     const institute = await Institute.findById(req.params.id);
 
     if (institute) {
+        // If contactEmail is changing, check if a user with that email already exists for another institute
+        if (contactEmail && contactEmail !== institute.contactEmail) {
+            const emailExists = await User.findOne({ email: contactEmail, institute: { $ne: institute._id } });
+            if (emailExists) {
+                res.status(400);
+                throw new Error('User account with this contact email already exists');
+            }
+        }
+
         institute.name = name || institute.name;
         institute.code = code || institute.code;
         institute.address = address || institute.address;
         institute.contactEmail = contactEmail || institute.contactEmail;
 
         const updatedInstitute = await institute.save();
+
+        // Sync or update corresponding portal User account
+        const user = await User.findOne({ institute: institute._id, role: 'Institute' });
+        if (user) {
+            user.name = institute.name;
+            user.email = institute.contactEmail;
+            if (password && password.trim() !== '') {
+                user.password = password;
+            }
+            await user.save();
+        } else {
+            // If the user portal account didn't exist for some reason, create it
+            await User.create({
+                name: institute.name,
+                email: institute.contactEmail,
+                password: password || '123456',
+                role: 'Institute',
+                institute: institute._id
+            });
+        }
 
         await Activity.create({
             type: 'INSTITUTE_UPDATED',

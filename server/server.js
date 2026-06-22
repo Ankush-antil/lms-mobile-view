@@ -48,6 +48,7 @@ app.use('/api/tests', require('./routes/testRoutes'));
 app.use('/api/submissions', require('./routes/submissionRoutes'));
 app.use('/api/public-tests', require('./routes/publicTestRoutes'));
 app.use('/api/calls', require('./routes/teacher/callRoutes'));
+app.use('/api/messages', require('./routes/common/messageRoutes'));
 
 // API-only server (Mobile App) — no static file serving
 app.get('/', (req, res) => {

@@ -39,6 +39,40 @@ const initSocket = (server) => {
             if (callback) callback({ isOnline });
         });
 
+        // Real-time Chat Messaging
+        socket.on('send-message', async ({ receiverId, text }) => {
+            console.log(`[SOCKET] Message from ${socket.userId} to ${receiverId}: ${text}`);
+            if (!socket.userId) {
+                console.error('[SOCKET] Cannot send message: Sender not registered');
+                return;
+            }
+            try {
+                const Message = require('./models/Message');
+                const newMsg = await Message.create({
+                    sender: socket.userId,
+                    receiver: receiverId,
+                    text: text
+                });
+
+                const populatedMsg = await Message.findById(newMsg._id)
+                    .populate('sender', '_id name email role avatar')
+                    .populate('receiver', '_id name email role avatar');
+
+                // Broadcast to receiver if online
+                const receiverSocketId = onlineUsers[receiverId];
+                if (receiverSocketId) {
+                    console.log(`[SOCKET] Routing real-time message to online user ${receiverId}`);
+                    io.to(receiverSocketId).emit('new-message', populatedMsg);
+                }
+
+                // Acknowledge back to sender
+                socket.emit('message-sent', populatedMsg);
+            } catch (err) {
+                console.error('[SOCKET] Error processing send-message:', err);
+                socket.emit('message-send-error', { error: err.message });
+            }
+        });
+
         // Start a call
         socket.on('call-user', async ({ targetId, offer, callerName, callerId, callType }) => {
             const resolvedCallType = callType === 'video' ? 'video' : 'audio';

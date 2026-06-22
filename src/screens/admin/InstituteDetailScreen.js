@@ -14,21 +14,21 @@ import { AppHeader, SectionCard, Badge, LoadingScreen } from '../../components/c
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
-const UserDetailScreen = ({ route, navigation }) => {
-    const { userId } = route.params;
-    const [user, setUser] = useState(null);
+const InstituteDetailScreen = ({ route, navigation }) => {
+    const { instituteId } = route.params;
+    const [institute, setInstitute] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newPassword, setNewPassword] = useState('');
     const [updatingPassword, setUpdatingPassword] = useState(false);
 
-    const fetchUserDetails = async () => {
+    const fetchInstituteDetails = async () => {
         try {
             setLoading(true);
-            const { data } = await axios.get(`/users/${userId}`);
-            setUser(data);
+            const { data } = await axios.get(`/setup/institutes/${instituteId}`);
+            setInstitute(data);
         } catch (e) {
-            console.error('Error fetching user details:', e);
-            Alert.alert('Error', 'User details load nahi ho paye');
+            console.error('Error fetching institute details:', e);
+            Alert.alert('Error', 'Institute details load nahi ho paye');
             navigation.goBack();
         } finally {
             setLoading(false);
@@ -36,8 +36,8 @@ const UserDetailScreen = ({ route, navigation }) => {
     };
 
     useEffect(() => {
-        fetchUserDetails();
-    }, [userId]);
+        fetchInstituteDetails();
+    }, [instituteId]);
 
     const handleUpdatePassword = async () => {
         if (!newPassword.trim()) {
@@ -50,11 +50,11 @@ const UserDetailScreen = ({ route, navigation }) => {
         }
         try {
             setUpdatingPassword(true);
-            await axios.put(`/users/${userId}`, { password: newPassword.trim() });
-            Alert.alert('Success', 'Password updated successfully!');
+            await axios.put(`/setup/institutes/${instituteId}`, { password: newPassword.trim() });
+            Alert.alert('Success', 'Institute portal password updated successfully!');
             setNewPassword('');
         } catch (e) {
-            console.error('Password update error:', e);
+            console.error('Institute password update error:', e);
             Alert.alert('Error', e.response?.data?.message || 'Password update failed');
         } finally {
             setUpdatingPassword(false);
@@ -63,8 +63,8 @@ const UserDetailScreen = ({ route, navigation }) => {
 
     const handleDelete = () => {
         Alert.alert(
-            'Remove User',
-            `Kya aap sach mein ${user?.name || 'is user'} ko delete karna chahte hain?`,
+            'Remove Institute',
+            `Kya aap sach mein ${institute?.name || 'is institute'} ko delete karna chahte hain? Sabhi resources iske remove ho jayenge.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -72,11 +72,11 @@ const UserDetailScreen = ({ route, navigation }) => {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await axios.delete(`/users/${userId}`);
-                            Alert.alert('Success', 'User deleted successfully');
+                            await axios.delete(`/setup/institutes/${instituteId}`);
+                            Alert.alert('Success', 'Institute deleted successfully');
                             navigation.goBack();
                         } catch (err) {
-                            Alert.alert('Error', 'User delete karne mein error aaya');
+                            Alert.alert('Error', 'Institute delete karne mein error aaya');
                         }
                     },
                 },
@@ -85,137 +85,62 @@ const UserDetailScreen = ({ route, navigation }) => {
     };
 
     if (loading) return <LoadingScreen />;
-    if (!user) return <Text style={styles.errorText}>User not found</Text>;
+    if (!institute) return <Text style={styles.errorText}>Institute not found</Text>;
 
-    const isStudent = user.role === 'Student';
-    const themeColor = isStudent ? colors.student : colors.teacher;
-    const themeBg = isStudent ? '#eef2ff' : '#ecfdf5';
+    const themeColor = colors.accent;
+    const themeBg = '#eef2ff';
 
     return (
         <View style={styles.container}>
-            <AppHeader title="User Details" showBack />
+            <AppHeader title="Institute Details" showBack />
             
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {/* Profile Banner */}
                 <View style={styles.profileHeader}>
                     <View style={[styles.avatar, { backgroundColor: themeColor }]}>
-                        <Text style={styles.avatarText}>{user.name?.[0]?.toUpperCase() || 'U'}</Text>
+                        <Text style={styles.avatarText}>{institute.name?.[0]?.toUpperCase() || 'I'}</Text>
                     </View>
-                    <Text style={styles.name}>{user.name}</Text>
+                    <Text style={styles.name}>{institute.name}</Text>
                     <View style={[styles.roleBadge, { backgroundColor: themeBg }]}>
-                        <Ionicons 
-                            name={isStudent ? 'person' : 'people'} 
-                            size={14} 
-                            color={themeColor} 
-                        />
-                        <Text style={[styles.roleText, { color: themeColor }]}>{user.role}</Text>
+                        <Ionicons name="business" size={14} color={themeColor} />
+                        <Text style={[styles.roleText, { color: themeColor }]}>{institute.code}</Text>
                     </View>
                 </View>
 
                 {/* Account Details */}
                 <SectionCard>
-                    <Text style={styles.sectionTitle}>Account Details</Text>
+                    <Text style={styles.sectionTitle}>Institute Info</Text>
                     
                     <View style={styles.infoRow}>
                         <Ionicons name="mail-outline" size={18} color={colors.textSecondary} />
                         <View style={styles.infoTextContainer}>
-                            <Text style={styles.infoLabel}>Email Address</Text>
-                            <Text style={styles.infoValue}>{user.email}</Text>
+                            <Text style={styles.infoLabel}>Contact Email</Text>
+                            <Text style={styles.infoValue}>{institute.contactEmail}</Text>
                         </View>
                     </View>
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="call-outline" size={18} color={colors.textSecondary} />
+                        <Ionicons name="location-outline" size={18} color={colors.textSecondary} />
                         <View style={styles.infoTextContainer}>
-                            <Text style={styles.infoLabel}>Mobile Number</Text>
-                            <Text style={styles.infoValue}>{user.mobileNumber || 'Not provided'}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Ionicons name="business-outline" size={18} color={colors.textSecondary} />
-                        <View style={styles.infoTextContainer}>
-                            <Text style={styles.infoLabel}>Institute</Text>
-                            <Text style={styles.infoValue}>{user.institute?.name || 'No Institute Assigned'}</Text>
+                            <Text style={styles.infoLabel}>Address</Text>
+                            <Text style={styles.infoValue}>{institute.address || 'Not provided'}</Text>
                         </View>
                     </View>
                 </SectionCard>
 
-                {/* Student specific */}
-                {isStudent && (
-                    <SectionCard>
-                        <Text style={styles.sectionTitle}>Student Profile</Text>
-                        
-                        <View style={styles.infoRow}>
-                            <Ionicons name="book-outline" size={18} color={colors.textSecondary} />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>Course</Text>
-                                <Text style={styles.infoValue}>
-                                    {user.studentProfile?.course?.name || 'Not Enrolled in any Course'}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="library-outline" size={18} color={colors.textSecondary} />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>Primary Subject</Text>
-                                <Text style={styles.infoValue}>{user.studentProfile?.subject || 'N/A'}</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>Enrollment Date</Text>
-                                <Text style={styles.infoValue}>
-                                    {user.studentProfile?.enrollmentDate 
-                                        ? new Date(user.studentProfile.enrollmentDate).toLocaleDateString()
-                                        : 'N/A'}
-                                </Text>
-                            </View>
-                        </View>
-                    </SectionCard>
-                )}
-
-                {/* Teacher specific */}
-                {!isStudent && (
-                    <SectionCard>
-                        <Text style={styles.sectionTitle}>Teacher Profile</Text>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="book-outline" size={18} color={colors.textSecondary} />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>Assigned Courses</Text>
-                                <View style={styles.badgeContainer}>
-                                    {user.teacherProfile?.assignedCourses?.length > 0 ? (
-                                        user.teacherProfile.assignedCourses.map((c) => (
-                                            <Badge key={c._id} label={c.name} color={colors.teacher} bg="#ecfdf5" />
-                                        ))
-                                    ) : (
-                                        <Text style={styles.infoValue}>No Courses Assigned</Text>
-                                    )}
-                                </View>
-                            </View>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="copy-outline" size={18} color={colors.textSecondary} />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>Subjects Expertises</Text>
-                                <View style={styles.badgeContainer}>
-                                    {user.teacherProfile?.subjects?.length > 0 ? (
-                                        user.teacherProfile.subjects.map((sub, index) => (
-                                            <Badge key={index} label={sub} color={colors.primary} bg="#eef2ff" />
-                                        ))
-                                    ) : (
-                                        <Text style={styles.infoValue}>N/A</Text>
-                                    )}
-                                </View>
-                            </View>
-                        </View>
-                    </SectionCard>
-                )}
+                {/* Courses Offered */}
+                <SectionCard>
+                    <Text style={styles.sectionTitle}>Courses</Text>
+                    <View style={styles.badgeContainer}>
+                        {institute.courses && institute.courses.length > 0 ? (
+                            institute.courses.map((c) => (
+                                <Badge key={c._id} label={c.name} color={colors.warning} bg="#fef3c7" />
+                            ))
+                        ) : (
+                            <Text style={styles.noCoursesText}>No Courses Created yet</Text>
+                        )}
+                    </View>
+                </SectionCard>
 
                 {/* Update Password */}
                 <SectionCard>
@@ -226,7 +151,7 @@ const UserDetailScreen = ({ route, navigation }) => {
                             <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} />
                             <TextInput
                                 style={styles.input}
-                                placeholder="Enter new password"
+                                placeholder="Enter new password for portal login"
                                 placeholderTextColor={colors.textMuted}
                                 value={newPassword}
                                 onChangeText={setNewPassword}
@@ -258,7 +183,7 @@ const UserDetailScreen = ({ route, navigation }) => {
                     activeOpacity={0.8}
                 >
                     <Ionicons name="trash-outline" size={20} color={colors.white} />
-                    <Text style={styles.deleteButtonText}>Delete User Account</Text>
+                    <Text style={styles.deleteButtonText}>Delete Institute</Text>
                 </TouchableOpacity>
             </ScrollView>
         </View>
@@ -352,6 +277,11 @@ const styles = StyleSheet.create({
         gap: 6,
         marginTop: 4,
     },
+    noCoursesText: {
+        color: colors.textMuted,
+        fontSize: fontSizes.sm,
+        fontStyle: 'italic',
+    },
     deleteButton: {
         backgroundColor: colors.danger,
         flexDirection: 'row',
@@ -422,4 +352,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default UserDetailScreen;
+export default InstituteDetailScreen;

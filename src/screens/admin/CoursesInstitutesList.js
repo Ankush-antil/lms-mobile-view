@@ -140,7 +140,11 @@ const InstitutesList = ({ navigation }) => {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} />}
                 ListEmptyComponent={<EmptyState icon="business-outline" title="No institutes found" />}
                 renderItem={({ item }) => (
-                    <View style={styles.courseCard}>
+                    <TouchableOpacity
+                        style={styles.courseCard}
+                        onPress={() => navigation.navigate('InstituteDetail', { instituteId: item._id })}
+                        activeOpacity={0.85}
+                    >
                         <View style={[styles.courseIcon, { backgroundColor: '#eef2ff' }]}>
                             <Ionicons name="business" size={22} color={colors.accent} />
                         </View>
@@ -148,7 +152,8 @@ const InstitutesList = ({ navigation }) => {
                             <Text style={styles.courseName}>{item.name}</Text>
                             {item.address && <Text style={styles.courseDesc}>{item.address}</Text>}
                         </View>
-                    </View>
+                        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ alignSelf: 'center' }} />
+                    </TouchableOpacity>
                 )}
             />
         </View>

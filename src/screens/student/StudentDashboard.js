@@ -118,6 +118,24 @@ const StudentDashboard = ({ navigation }) => {
                     />
                 </View>
 
+                {/* Chat with Teachers Quick Banner */}
+                <TouchableOpacity
+                    style={styles.chatBanner}
+                    onPress={() => navigation.navigate('ContactTeacher')}
+                    activeOpacity={0.85}
+                >
+                    <View style={styles.chatBannerLeft}>
+                        <View style={styles.chatIconCircle}>
+                            <Ionicons name="chatbubbles" size={22} color={colors.white} />
+                        </View>
+                        <View>
+                            <Text style={styles.chatBannerTitle}>Contact Teachers</Text>
+                            <Text style={styles.chatBannerSub}>Chat, call, and video call your teachers</Text>
+                        </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                </TouchableOpacity>
+
                 {/* Missed Calls */}
                 {missedCalls.length > 0 && (
                     <SectionCard style={styles.missedCallsCard}>
@@ -423,6 +441,40 @@ const styles = StyleSheet.create({
         fontSize: fontSizes.sm,
         fontWeight: '700',
         color: colors.text,
+    },
+    chatBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#eef2ff',
+        borderRadius: borderRadius.md,
+        padding: spacing.md,
+        marginBottom: spacing.md,
+        borderWidth: 1.5,
+        borderColor: '#e0e7ff',
+    },
+    chatBannerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm + 4,
+    },
+    chatIconCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: colors.accent,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    chatBannerTitle: {
+        fontSize: fontSizes.md,
+        fontWeight: '800',
+        color: colors.text,
+    },
+    chatBannerSub: {
+        fontSize: fontSizes.xs,
+        color: colors.textSecondary,
+        marginTop: 2,
     },
 });
 

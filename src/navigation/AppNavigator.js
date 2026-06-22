@@ -16,6 +16,7 @@ import StudentDashboard from '../screens/student/StudentDashboard';
 import StudentTests from '../screens/student/StudentTests';
 import TakeTestScreen from '../screens/student/TakeTestScreen';
 import ViewTestResult from '../screens/student/ViewTestResult';
+import ContactTeacher from '../screens/student/ContactTeacher';
 
 // Teacher
 import TeacherDashboard from '../screens/teacher/TeacherDashboard';
@@ -31,6 +32,7 @@ import UserDetailScreen from '../screens/admin/UserDetailScreen';
 import CreateUserScreen from '../screens/admin/CreateUserScreen';
 import CreateCourseScreen from '../screens/admin/CreateCourseScreen';
 import CreateInstituteScreen from '../screens/admin/CreateInstituteScreen';
+import InstituteDetailScreen from '../screens/admin/InstituteDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,6 +49,7 @@ const StudentStack = () => (
         <Stack.Screen name="StudentTests" component={StudentTests} />
         <Stack.Screen name="TakeTest" component={TakeTestScreen} />
         <Stack.Screen name="ViewTestResult" component={ViewTestResult} />
+        <Stack.Screen name="ContactTeacher" component={ContactTeacher} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
 );
@@ -74,6 +77,7 @@ const AdminStack = () => (
         <Stack.Screen name="TestsList" component={TestsList} />
         <Stack.Screen name="TestBuilder" component={TestBuilder} />
         <Stack.Screen name="UserDetail" component={UserDetailScreen} />
+        <Stack.Screen name="InstituteDetail" component={InstituteDetailScreen} />
         <Stack.Screen name="CreateUser" component={CreateUserScreen} />
         <Stack.Screen name="CreateCourse" component={CreateCourseScreen} />
         <Stack.Screen name="CreateInstitute" component={CreateInstituteScreen} />

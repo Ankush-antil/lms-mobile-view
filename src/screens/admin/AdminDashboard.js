@@ -111,6 +111,11 @@ const AdminDashboard = ({ navigation }) => {
                         <View style={[styles.statCardWrapper, { width: cardWidth }]}>
                             <StatCard title="Courses" value={stats?.courses} icon="book" color={colors.warning} bg="#fef3c7" />
                         </View>
+                        {!isInstitute && (
+                            <View style={[styles.statCardWrapper, { width: cardWidth }]}>
+                                <StatCard title="Institutes" value={stats?.institutes} icon="business" color={colors.accent} bg="#eef2ff" />
+                            </View>
+                        )}
                     </ScrollView>
                 )}
 

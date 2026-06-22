@@ -43,6 +43,13 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     const courseCount = await Course.countDocuments(courseQuery);
     const testCount = await Test.countDocuments(testQuery);
 
+    let instituteCount = 0;
+    if (req.user && req.user.role === 'Admin') {
+        instituteCount = await Institute.countDocuments({});
+    } else if (req.user && req.user.role === 'Institute') {
+        instituteCount = 1;
+    }
+
     const activities = await Activity.find(activityQuery)
         .sort({ createdAt: -1 })
         .limit(10)
@@ -54,7 +61,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
             teachers: teacherCount,
             editors: editorCount,
             courses: courseCount,
-            tests: testCount
+            tests: testCount,
+            institutes: instituteCount
         },
         activities
     });

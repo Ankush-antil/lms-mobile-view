@@ -22,7 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 const ContactStudents = ({ navigation }) => {
     const { user } = useAuth();
-    const { callUser, onlineUsers } = useSocket();
+    const { callUser, onlineUsers, socket } = useSocket();
+    const chatScrollViewRef = React.useRef(null);
     const [profile, setProfile] = useState(null);
     const [students, setStudents] = useState([]);
     const [callHistory, setCallHistory] = useState([]);
@@ -83,35 +84,69 @@ const ContactStudents = ({ navigation }) => {
         fetchData();
     }, []);
 
+    const openChat = async (contact) => {
+        setActiveContact(contact);
+        setContactType('chat');
+        try {
+            const historyRes = await axios.get(`/messages/${contact._id}`);
+            setChatMessages(historyRes.data || []);
+            // Mark as read
+            await axios.put(`/messages/${contact._id}/read`);
+            // Refresh main lists
+            fetchData();
+        } catch (e) {
+            console.error('[CHAT] Error opening chat history:', e);
+        }
+    };
+
+    // Listen for real-time messages via socket
+    useEffect(() => {
+        if (socket) {
+            const handleNewMessage = (msg) => {
+                const isMsgFromActive = activeContact && 
+                    (msg.sender?._id === activeContact._id || msg.sender === activeContact._id);
+                
+                if (isMsgFromActive) {
+                    setChatMessages(prev => [...prev, msg]);
+                    // Mark as read
+                    axios.put(`/messages/${activeContact._id}/read`).catch(() => {});
+                } else {
+                    // Refresh data to show unread badges / latest messages
+                    fetchData();
+                }
+            };
+
+            const handleMessageSent = (msg) => {
+                const isMsgForActive = activeContact && 
+                    (msg.receiver?._id === activeContact._id || msg.receiver === activeContact._id);
+                
+                if (isMsgForActive) {
+                    setChatMessages(prev => [...prev, msg]);
+                }
+            };
+
+            socket.on('new-message', handleNewMessage);
+            socket.on('message-sent', handleMessageSent);
+
+            return () => {
+                socket.off('new-message', handleNewMessage);
+                socket.off('message-sent', handleMessageSent);
+            };
+        }
+    }, [socket, activeContact]);
+
     const handleSendMsg = () => {
-        if (!chatInput.trim()) return;
-        const newMsg = {
-            id: Date.now().toString(),
-            sender: 'Teacher',
-            text: chatInput,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setChatMessages(prev => [...prev, newMsg]);
-        const typed = chatInput;
-        setChatInput('');
-
-        setTimeout(() => {
-            let replyText = "Yes sir, I am working on the assignments.";
-            if (typed.toLowerCase().includes('hello') || typed.toLowerCase().includes('hi')) {
-                replyText = "Hello Sir! How can I help you today?";
-            } else if (typed.toLowerCase().includes('test') || typed.toLowerCase().includes('exam')) {
-                replyText = "Sir, I have prepared for the test. When is the deadline?";
-            } else if (typed.toLowerCase().includes('call')) {
-                replyText = "Sure sir, you can call me anytime.";
-            }
-
-            setChatMessages(prev => [...prev, {
-                id: (Date.now() + 1).toString(),
-                sender: 'Student',
-                text: replyText,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }]);
-        }, 1500);
+        if (!chatInput.trim() || !activeContact) return;
+        
+        if (socket && socket.connected) {
+            socket.emit('send-message', {
+                receiverId: activeContact._id,
+                text: chatInput.trim()
+            });
+            setChatInput('');
+        } else {
+            console.warn('[CHAT] Socket offline. Unable to send real-time message.');
+        }
     };
 
     if (loading) {
@@ -250,12 +285,11 @@ const ContactStudents = ({ navigation }) => {
                                 <View style={styles.waActionsRow}>
                                     {peer?._id && (
                                         <TouchableOpacity 
-                                            style={styles.waActionBtn}
+                                            style={[styles.waActionBtn, { marginRight: 8 }]}
                                             onPress={() => {
                                                 callUser(peer._id, peerName, peerRole, item.callType);
                                             }}
                                             activeOpacity={0.7}
-                                            style={{ marginRight: 8 }}
                                         >
                                             <Ionicons 
                                                 name={item.callType === 'video' ? "videocam-outline" : "call-outline"} 
@@ -282,10 +316,7 @@ const ContactStudents = ({ navigation }) => {
                         return (
                             <TouchableOpacity 
                                 style={styles.waItemRow}
-                                onPress={() => {
-                                    setActiveContact(item);
-                                    setContactType('chat');
-                                }}
+                                onPress={() => openChat(item)}
                                 activeOpacity={0.8}
                             >
                                 <View style={{ position: 'relative' }}>
@@ -305,10 +336,7 @@ const ContactStudents = ({ navigation }) => {
                                 <View style={styles.waActionsRow}>
                                     <TouchableOpacity 
                                         style={styles.waActionBtn}
-                                        onPress={() => {
-                                            setActiveContact(item);
-                                            setContactType('chat');
-                                        }}
+                                        onPress={() => openChat(item)}
                                         activeOpacity={0.75}
                                     >
                                         <Ionicons 
@@ -353,100 +381,149 @@ const ContactStudents = ({ navigation }) => {
 
 
             {/* Chat Modal */}
-            <Modal
-                visible={contactType === 'chat'}
-                animationType="slide"
-                transparent
-                onRequestClose={() => {
-                    setContactType(null);
-                    setChatMessages([]);
-                }}
-            >
-                <KeyboardAvoidingView 
-                    style={styles.chatOverlay} 
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            {activeContact && contactType === 'chat' && (
+                <Modal
+                    visible={true}
+                    animationType="slide"
+                    transparent={false}
+                    onRequestClose={() => {
+                        setContactType(null);
+                        setActiveContact(null);
+                        setChatMessages([]);
+                    }}
                 >
-                    <View style={styles.chatSheet}>
+                    <KeyboardAvoidingView 
+                        style={styles.chatContainer} 
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
+                        {/* Chat Header */}
                         <View style={styles.chatHeader}>
-                            <View style={styles.chatHeaderLeft}>
-                                <View style={[styles.chatAvatar, { backgroundColor: colors.teacher }]}>
-                                    <Text style={styles.chatAvatarText}>{activeContact?.name?.[0]}</Text>
-                                </View>
-                                <View>
-                                    <Text style={styles.chatHeaderTitle}>{activeContact?.name}</Text>
-                                    <Text style={styles.chatHeaderStatus}>Online</Text>
-                                </View>
-                            </View>
                             <TouchableOpacity 
                                 onPress={() => {
                                     setContactType(null);
+                                    setActiveContact(null);
                                     setChatMessages([]);
-                                }}
-                                activeOpacity={0.8}
+                                }} 
+                                activeOpacity={0.7}
+                                style={styles.backBtn}
                             >
-                                <Ionicons name="close" size={24} color={colors.textSecondary} />
+                                <Ionicons name="chevron-back" size={24} color={colors.textSecondary} />
                             </TouchableOpacity>
+
+                            <View style={styles.chatHeaderInfo}>
+                                <View style={[styles.chatStatusIndicator, { backgroundColor: onlineUsers?.includes(activeContact._id) ? colors.success : '#cbd5e1' }]} />
+                                <Text style={styles.chatHeaderTitle}>{activeContact.name.toUpperCase()}</Text>
+                            </View>
+
+                            <View style={styles.chatHeaderActions}>
+                                <TouchableOpacity 
+                                    onPress={() => callUser(activeContact._id, activeContact.name, 'Student', 'audio')}
+                                    style={styles.chatHeaderActionBtn}
+                                    activeOpacity={0.75}
+                                >
+                                    <Ionicons name="call" size={20} color={colors.accent} />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    onPress={() => callUser(activeContact._id, activeContact.name, 'Student', 'video')}
+                                    style={styles.chatHeaderActionBtn}
+                                    activeOpacity={0.75}
+                                >
+                                    <Ionicons name="videocam" size={21} color={colors.accent} />
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
-                        <ScrollView 
-                            style={styles.chatMessagesContainer}
+                        {/* Messages Area */}
+                        <ScrollView
+                            ref={chatScrollViewRef}
+                            style={styles.chatMessagesScroll}
                             contentContainerStyle={styles.chatMessagesContent}
-                            ref={ref => ref?.scrollToEnd({ animated: true })}
+                            onContentSizeChange={() => chatScrollViewRef.current?.scrollToEnd({ animated: true })}
                         >
                             {chatMessages.length === 0 ? (
-                                <View style={styles.emptyChatContainer}>
+                                <View style={styles.emptyChat}>
                                     <Ionicons name="chatbubble-ellipses-outline" size={48} color={colors.textMuted} />
                                     <Text style={styles.emptyChatText}>No messages yet</Text>
-                                    <Text style={styles.emptyChatSub}>Start a conversation with {activeContact?.name}</Text>
+                                    <Text style={styles.emptyChatSub}>Send a message to start conversing</Text>
                                 </View>
                             ) : (
-                                chatMessages.map((msg) => {
-                                    const isTeacher = msg.sender === 'Teacher';
+                                chatMessages.map((msg, index) => {
+                                    const isSelf = msg.sender?._id === user?._id || msg.sender === user?._id;
+                                    
                                     return (
                                         <View 
-                                            key={msg.id} 
+                                            key={msg._id || index} 
                                             style={[
                                                 styles.msgWrapper, 
-                                                isTeacher ? styles.msgWrapperTeacher : styles.msgWrapperStudent
+                                                isSelf ? styles.msgWrapperSelf : styles.msgWrapperPeer
                                             ]}
                                         >
+                                            {/* Show Avatar next to peer message */}
+                                            {!isSelf && (
+                                                <View style={styles.msgAvatarWrapperLeft}>
+                                                    <View style={[styles.msgSmallAvatar, { backgroundColor: colors.student }]}>
+                                                        <Text style={styles.msgSmallAvatarText}>{activeContact?.name?.[0]?.toUpperCase()}</Text>
+                                                    </View>
+                                                </View>
+                                            )}
+
                                             <View 
                                                 style={[
                                                     styles.msgBubble, 
-                                                    isTeacher ? styles.msgBubbleTeacher : styles.msgBubbleStudent
+                                                    isSelf ? styles.msgBubbleSelf : styles.msgBubblePeer
                                                 ]}
                                             >
-                                                <Text style={isTeacher ? styles.msgTextTeacher : styles.msgTextStudent}>
+                                                <Text style={isSelf ? styles.msgTextSelf : styles.msgTextPeer}>
                                                     {msg.text}
                                                 </Text>
                                             </View>
-                                            <Text style={styles.msgTime}>{msg.time}</Text>
+
+                                            {/* Show Avatar next to self message */}
+                                            {isSelf && (
+                                                <View style={styles.msgAvatarWrapperRight}>
+                                                    <View style={[styles.msgSmallAvatar, { backgroundColor: colors.teacher }]}>
+                                                        <Text style={styles.msgSmallAvatarText}>{user?.name?.[0]?.toUpperCase()}</Text>
+                                                    </View>
+                                                </View>
+                                            )}
                                         </View>
                                     );
                                 })
                             )}
                         </ScrollView>
 
+                        {/* Input Bar */}
                         <View style={styles.chatInputBar}>
+                            <TouchableOpacity activeOpacity={0.7} style={styles.inputLeftIcon}>
+                                <Ionicons name="happy-outline" size={24} color={colors.textMuted} />
+                            </TouchableOpacity>
+
                             <TextInput
                                 style={styles.chatTextInput}
-                                placeholder="Type a message..."
+                                placeholder="Type something"
                                 placeholderTextColor={colors.textMuted}
                                 value={chatInput}
                                 onChangeText={setChatInput}
+                                multiline
                             />
-                            <TouchableOpacity 
-                                style={[styles.chatSendBtn, !chatInput.trim() && { opacity: 0.6 }]}
-                                onPress={handleSendMsg}
-                                disabled={!chatInput.trim()}
-                                activeOpacity={0.85}
-                            >
-                                <Ionicons name="send" size={16} color={colors.white} />
-                            </TouchableOpacity>
+
+                            {chatInput.trim().length > 0 ? (
+                                <TouchableOpacity 
+                                    onPress={handleSendMsg} 
+                                    style={styles.sendBtn}
+                                    activeOpacity={0.8}
+                                >
+                                    <Ionicons name="send" size={18} color={colors.white} />
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity activeOpacity={0.7} style={styles.inputRightIcon}>
+                                    <Ionicons name="attach-outline" size={26} color={colors.textMuted} />
+                                </TouchableOpacity>
+                            )}
                         </View>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
+                    </KeyboardAvoidingView>
+                </Modal>
+            )}
         </View>
     );
 };
@@ -712,66 +789,65 @@ const styles = StyleSheet.create({
     },
 
     // Chat Overlay Styles
-    chatOverlay: {
+    chatContainer: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    chatSheet: {
-        backgroundColor: colors.bgCard,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        height: '80%',
-        paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+        backgroundColor: '#f8fafc',
     },
     chatHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        paddingTop: Platform.OS === 'android' ? 44 : 50,
+        paddingBottom: 14,
         paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm + 4,
+        backgroundColor: colors.white,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 1,
     },
-    chatHeaderLeft: {
+    backBtn: {
+        padding: 4,
+    },
+    chatHeaderInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.sm,
-    },
-    chatAvatar: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        alignItems: 'center',
         justifyContent: 'center',
+        gap: 6,
     },
-    chatAvatarText: {
-        fontSize: fontSizes.sm,
-        fontWeight: '850',
-        color: colors.white,
+    chatStatusIndicator: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
     },
     chatHeaderTitle: {
         fontSize: fontSizes.md,
-        fontWeight: '700',
+        fontWeight: '800',
         color: colors.text,
+        letterSpacing: 1,
     },
-    chatHeaderStatus: {
-        fontSize: fontSizes.xs - 2,
-        color: colors.success,
-        fontWeight: '700',
+    chatHeaderActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
-    chatMessagesContainer: {
+    chatHeaderActionBtn: {
+        padding: 6,
+    },
+    chatMessagesScroll: {
         flex: 1,
         paddingHorizontal: spacing.md,
     },
     chatMessagesContent: {
         paddingVertical: spacing.md,
-        gap: spacing.sm,
     },
-    emptyChatContainer: {
+    emptyChat: {
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 100,
+        marginTop: 180,
         gap: spacing.xs,
     },
     emptyChatText: {
@@ -782,78 +858,99 @@ const styles = StyleSheet.create({
     emptyChatSub: {
         fontSize: fontSizes.xs,
         color: colors.textMuted,
-        textAlign: 'center',
     },
     msgWrapper: {
-        maxWidth: '80%',
-        marginBottom: 4,
-    },
-    msgWrapperTeacher: {
-        alignSelf: 'flex-end',
+        flexDirection: 'row',
         alignItems: 'flex-end',
+        marginVertical: 6,
+        maxWidth: '85%',
     },
-    msgWrapperStudent: {
+    msgWrapperSelf: {
+        alignSelf: 'flex-end',
+    },
+    msgWrapperPeer: {
         alignSelf: 'flex-start',
-        alignItems: 'flex-start',
+    },
+    msgAvatarWrapperLeft: {
+        marginRight: 8,
+    },
+    msgAvatarWrapperRight: {
+        marginLeft: 8,
+    },
+    msgSmallAvatar: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    msgSmallAvatarText: {
+        fontSize: fontSizes.xs - 1,
+        fontWeight: '800',
+        color: colors.white,
     },
     msgBubble: {
-        borderRadius: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 18,
     },
-    msgBubbleTeacher: {
-        backgroundColor: colors.accent,
-        borderTopRightRadius: 4,
+    msgBubbleSelf: {
+        backgroundColor: colors.white,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderBottomRightRadius: 4,
     },
-    msgBubbleStudent: {
-        backgroundColor: colors.bgSecondary,
-        borderWidth: 1.5,
-        borderColor: colors.borderLight,
-        borderTopLeftRadius: 4,
+    msgBubblePeer: {
+        backgroundColor: '#262626',
+        borderBottomLeftRadius: 4,
     },
-    msgTextTeacher: {
-        color: colors.white,
-        fontSize: fontSizes.sm,
-        fontWeight: '600',
-    },
-    msgTextStudent: {
-        color: colors.text,
-        fontSize: fontSizes.sm,
-        fontWeight: '600',
-    },
-    msgTime: {
-        fontSize: 9,
-        color: colors.textMuted,
-        marginTop: 2,
+    msgTextSelf: {
+        color: '#1e293b',
+        fontSize: fontSizes.md - 1,
         fontWeight: '500',
+        lineHeight: 20,
+    },
+    msgTextPeer: {
+        color: colors.white,
+        fontSize: fontSizes.md - 1,
+        fontWeight: '500',
+        lineHeight: 20,
     },
     chatInputBar: {
         flexDirection: 'row',
-        paddingHorizontal: spacing.md,
-        paddingTop: 8,
-        gap: 8,
+        backgroundColor: colors.white,
+        paddingHorizontal: spacing.sm + 2,
+        paddingVertical: 10,
         alignItems: 'center',
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 10,
     },
     chatTextInput: {
         flex: 1,
-        backgroundColor: colors.bgSecondary,
-        borderRadius: borderRadius.md,
-        paddingHorizontal: spacing.md,
-        height: 44,
-        fontSize: fontSizes.sm,
-        color: colors.text,
-        borderWidth: 1.5,
-        borderColor: colors.border,
-    },
-    chatSendBtn: {
-        width: 44,
-        height: 44,
+        backgroundColor: '#f1f5f9',
         borderRadius: 22,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        fontSize: fontSizes.md - 1,
+        color: colors.text,
+        marginHorizontal: 8,
+        maxHeight: 100,
+    },
+    inputLeftIcon: {
+        padding: 4,
+    },
+    inputRightIcon: {
+        padding: 4,
+    },
+    sendBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: colors.accent,
         alignItems: 'center',
         justifyContent: 'center',
+        marginLeft: 4,
     },
     onlineIndicator: {
         position: 'absolute',
