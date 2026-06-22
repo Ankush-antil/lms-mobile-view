@@ -128,15 +128,32 @@ const ContactTeacher = ({ navigation }) => {
         }
     };
 
-    // Filter logic
-    const filteredTeachers = teachers.filter(t => 
-        t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Filter and Combine contacts
+    const getCombinedContacts = () => {
+        const filteredTeachers = teachers.filter(t => 
+            t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.email?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
-    const filteredChats = recentChats.filter(chat => 
-        chat.contact?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+        const list = filteredTeachers.map(teacher => {
+            const chat = recentChats.find(c => c.contact?._id === teacher._id);
+            return {
+                ...teacher,
+                lastMessage: chat?.lastMessage || null,
+                unreadCount: chat?.unreadCount || 0
+            };
+        });
+
+        // Sort: newest messages first, then others
+        return list.sort((a, b) => {
+            if (a.lastMessage && b.lastMessage) {
+                return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+            }
+            if (a.lastMessage) return -1;
+            if (b.lastMessage) return 1;
+            return a.name.localeCompare(b.name);
+        });
+    };
 
     if (loading) {
         return (
@@ -182,36 +199,10 @@ const ContactTeacher = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Custom Tab Row resembling reference image */}
-            <View style={styles.tabRow}>
-                <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'chats' && styles.activeTabBtn]}
-                    onPress={() => setActiveTab('chats')}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons 
-                        name={activeTab === 'chats' ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} 
-                        size={24} 
-                        color={activeTab === 'chats' ? colors.accent : colors.textMuted} 
-                    />
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'teachers' && styles.activeTabBtn]}
-                    onPress={() => setActiveTab('teachers')}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons 
-                        name={activeTab === 'teachers' ? "people" : "people-outline"} 
-                        size={24} 
-                        color={activeTab === 'teachers' ? colors.accent : colors.textMuted} 
-                    />
-                </TouchableOpacity>
-            </View>
-
             {/* Conversation/Teacher Directory List */}
             <FlatList
-                data={activeTab === 'chats' ? filteredChats : filteredTeachers}
-                keyExtractor={(item) => item._id || item.contact?._id}
+                data={getCombinedContacts()}
+                keyExtractor={(item) => item._id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContainer}
                 refreshControl={
@@ -224,75 +215,48 @@ const ContactTeacher = ({ navigation }) => {
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Ionicons name="chatbubbles-outline" size={54} color={colors.textMuted} />
-                        <Text style={styles.emptyText}>
-                            {activeTab === 'chats' ? 'No Recent Chats' : 'No Teachers Found'}
-                        </Text>
+                        <Text style={styles.emptyText}>No Teachers Found</Text>
                     </View>
                 }
                 renderItem={({ item }) => {
-                    if (activeTab === 'chats') {
-                        const contact = item.contact;
-                        const lastMsg = item.lastMessage;
-                        const isOnline = onlineUsers?.includes(contact?._id);
-                        
-                        return (
-                            <TouchableOpacity 
-                                style={styles.contactRow}
-                                onPress={() => openChat(contact)}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.avatarWrapper}>
-                                    <View style={[styles.avatar, { backgroundColor: colors.teacher }]}>
-                                        <Text style={styles.avatarText}>{contact?.name?.[0]?.toUpperCase() || 'T'}</Text>
+                    const isOnline = onlineUsers?.includes(item._id);
+                    const lastMsg = item.lastMessage;
+                    
+                    return (
+                        <TouchableOpacity 
+                            style={styles.contactRow}
+                            onPress={() => openChat(item)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.avatarWrapper}>
+                                <View style={[styles.avatar, { backgroundColor: colors.teacher }]}>
+                                    <Text style={styles.avatarText}>{item.name?.[0]?.toUpperCase() || 'T'}</Text>
+                                </View>
+                                <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : '#cbd5e1' }]} />
+                            </View>
+
+                            <View style={styles.detailsContainer}>
+                                <Text style={styles.contactName}>{item.name}</Text>
+                                <Text style={styles.lastMessage} numberOfLines={1}>
+                                    {lastMsg?.text || item.email}
+                                </Text>
+                            </View>
+
+                            <View style={styles.metaContainer}>
+                                {item.unreadCount > 0 ? (
+                                    <View style={styles.unreadBadge}>
+                                        <Text style={styles.unreadText}>{item.unreadCount}</Text>
                                     </View>
-                                    <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : '#cbd5e1' }]} />
-                                </View>
-
-                                <View style={styles.detailsContainer}>
-                                    <Text style={styles.contactName}>{contact?.name}</Text>
-                                    <Text style={styles.lastMessage} numberOfLines={1}>
-                                        {lastMsg?.text || 'No messages yet'}
-                                    </Text>
-                                </View>
-
-                                <View style={styles.metaContainer}>
+                                ) : lastMsg ? (
                                     <Text style={styles.timestamp}>
-                                        {lastMsg ? new Date(lastMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        {new Date(lastMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </Text>
-                                    {item.unreadCount > 0 && (
-                                        <View style={styles.unreadBadge}>
-                                            <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    } else {
-                        const isOnline = onlineUsers?.includes(item._id);
-                        return (
-                            <TouchableOpacity 
-                                style={styles.contactRow}
-                                onPress={() => openChat(item)}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.avatarWrapper}>
-                                    <View style={[styles.avatar, { backgroundColor: colors.teacher }]}>
-                                        <Text style={styles.avatarText}>{item.name?.[0]?.toUpperCase() || 'T'}</Text>
-                                    </View>
-                                    <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : '#cbd5e1' }]} />
-                                </View>
-
-                                <View style={styles.detailsContainer}>
-                                    <Text style={styles.contactName}>{item.name}</Text>
-                                    <Text style={styles.lastMessage} numberOfLines={1}>{item.email}</Text>
-                                </View>
-
-                                <View style={styles.metaContainer}>
+                                ) : (
                                     <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    }
+                                )}
+                            </View>
+                        </TouchableOpacity>
+                    );
                 }}
             />
 

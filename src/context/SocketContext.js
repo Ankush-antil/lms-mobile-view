@@ -269,7 +269,24 @@ export const SocketProvider = ({ children }) => {
     // Socket Connection Setup
     useEffect(() => {
         if (!user) {
+            setCallState('idle');
+            setCallInfo({
+                targetId: '',
+                targetName: '',
+                targetRole: '',
+                callLogId: '',
+                isCaller: false,
+                callType: 'audio'
+            });
+            setCallDuration(0);
+            stopVibration();
+            stopSound();
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
             if (socketRef.current) {
+                socketRef.current.off('disconnect');
                 socketRef.current.disconnect();
                 setSocket(null);
             }
