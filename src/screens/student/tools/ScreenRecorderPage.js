@@ -7,7 +7,8 @@ import {
     FlatList,
     ActivityIndicator,
     Alert,
-    Share
+    Share,
+    Linking
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,11 +18,26 @@ import { colors, spacing, fontSizes, borderRadius } from '../../../theme/colors'
 import { AppHeader } from '../../../components/common/UIComponents';
 import { parseDateToDdMmYyyy, getTodayDdMmYyyy } from '../../../utils/dateUtils';
 import Toast from 'react-native-toast-message';
+import { BASE_URL } from '../../../config/api';
 
 const ScreenRecorderPage = ({ route, navigation }) => {
     const { date: dateParam } = route.params || {};
     const todayDdMmYyyy = getTodayDdMmYyyy();
     const isReadOnly = dateParam && dateParam !== todayDdMmYyyy;
+
+    const playVideo = async (url) => {
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+                await Linking.openURL(url);
+            } else {
+                Alert.alert("Error", "Cannot open video player for this file.");
+            }
+        } catch (err) {
+            console.error("Failed to play video:", err);
+            Alert.alert("Error", "Could not open video player.");
+        }
+    };
 
     // States
     const [localRecordings, setLocalRecordings] = useState([]);
@@ -322,14 +338,18 @@ const ScreenRecorderPage = ({ route, navigation }) => {
                     renderItem={({ item }) => {
                         const isCloud = activeTab === 'cloud';
                         const fileId = isCloud ? item._id : item.id;
-                        const fileUrl = isCloud ? `${axios.defaults.baseURL.replace('/api', '')}${item.fileUrl}` : item.uri;
+                        const fileUrl = isCloud ? `${BASE_URL}${item.fileUrl}` : item.uri;
                         const isSynced = isCloud ? true : item.synced;
 
                         return (
                             <View style={styles.fileItem}>
-                                <View style={styles.videoIconContainer}>
+                                <TouchableOpacity
+                                    activeOpacity={0.7}
+                                    onPress={() => playVideo(fileUrl)}
+                                    style={styles.videoIconContainer}
+                                >
                                     <Ionicons name="play-circle-outline" size={32} color={colors.accent} />
-                                </View>
+                                </TouchableOpacity>
                                 <View style={styles.fileDetails}>
                                     <Text style={styles.fileName} numberOfLines={1}>
                                         {isCloud ? item.filename : item.filename || `screen_recording_${fileId}.mp4`}

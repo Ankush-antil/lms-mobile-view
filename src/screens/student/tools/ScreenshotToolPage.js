@@ -324,7 +324,7 @@ const ScreenshotToolPage = ({ route, navigation }) => {
                     renderItem={({ item }) => {
                         const isCloud = activeTab === 'cloud';
                         const fileId = isCloud ? item._id : item.id;
-                        const fileUrl = isCloud ? `${axios.defaults.baseURL.replace('/api', '')}${item.fileUrl}` : item.uri;
+                        const fileUrl = isCloud ? `${BASE_URL}${item.fileUrl}` : item.uri;
                         const isSynced = isCloud ? true : item.synced;
 
                         return (

@@ -17,6 +17,7 @@ import { colors, spacing, fontSizes, borderRadius } from '../../../theme/colors'
 import { AppHeader } from '../../../components/common/UIComponents';
 import { parseDateToDdMmYyyy, getTodayDdMmYyyy } from '../../../utils/dateUtils';
 import Toast from 'react-native-toast-message';
+import { BASE_URL } from '../../../config/api';
 
 const VoiceRecorderPage = ({ route, navigation }) => {
     const { date: dateParam } = route.params || {};
@@ -440,7 +441,7 @@ const VoiceRecorderPage = ({ route, navigation }) => {
                         const fileId = isCloud ? item._id : item.id;
                         const isPlaying = playingId === fileId;
                         const durationSec = isCloud ? (item.metadata?.duration || 0) : item.duration;
-                        const fileUrl = isCloud ? `${axios.defaults.baseURL.replace('/api', '')}${item.fileUrl}` : item.uri;
+                        const fileUrl = isCloud ? `${BASE_URL}${item.fileUrl}` : item.uri;
                         const isSynced = isCloud ? true : item.synced;
 
                         return (
