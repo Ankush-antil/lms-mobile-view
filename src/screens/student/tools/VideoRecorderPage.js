@@ -19,6 +19,7 @@ import { AppHeader } from '../../../components/common/UIComponents';
 import { parseDateToDdMmYyyy, getTodayDdMmYyyy } from '../../../utils/dateUtils';
 import Toast from 'react-native-toast-message';
 import { BASE_URL } from '../../../config/api';
+import GoogleDriveModal from '../../../components/common/GoogleDriveModal';
 
 const VideoRecorderPage = ({ route, navigation }) => {
     const { date: dateParam } = route.params || {};
@@ -41,6 +42,10 @@ const VideoRecorderPage = ({ route, navigation }) => {
     const [activeTab, setActiveTab] = useState('local'); // 'local' | 'cloud'
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+
+    // Google Drive state
+    const [driveModalOpen, setDriveModalOpen] = useState(false);
+    const [driveFileMeta, setDriveFileMeta] = useState({ name: '', uri: '' });
 
     // Fetch cloud files
     const fetchCloudFiles = async () => {
@@ -236,6 +241,11 @@ const VideoRecorderPage = ({ route, navigation }) => {
                 title="Video Recorder"
                 showBack={true}
                 backAction={() => navigation.goBack()}
+                rightIcon="logo-google"
+                rightAction={() => {
+                    setDriveFileMeta({ name: '', uri: '' });
+                    setDriveModalOpen(true);
+                }}
             />
 
             {/* Top Workspace Date indicator */}
@@ -372,6 +382,18 @@ const VideoRecorderPage = ({ route, navigation }) => {
 
                                 <View style={styles.actionButtons}>
                                     <TouchableOpacity
+                                        onPress={() => {
+                                            setDriveFileMeta({
+                                                name: isCloud ? item.filename : item.filename || `video_${fileId}.mp4`,
+                                                uri: fileUrl
+                                            });
+                                            setDriveModalOpen(true);
+                                        }}
+                                        style={styles.actionButton}
+                                    >
+                                        <Ionicons name="logo-google" size={18} color={colors.accent} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
                                         onPress={() => shareFile(fileUrl, isCloud ? item.filename : 'video.mp4')}
                                         style={styles.actionButton}
                                     >
@@ -391,6 +413,17 @@ const VideoRecorderPage = ({ route, navigation }) => {
                     }}
                 />
             )}
+
+            <GoogleDriveModal
+                isOpen={driveModalOpen}
+                onClose={() => setDriveModalOpen(false)}
+                fileName={driveFileMeta.name}
+                fileUri={driveFileMeta.uri}
+                toolType="video-recorder"
+                onSaveSuccess={() => {
+                    fetchCloudFiles();
+                }}
+            />
         </View>
     );
 };
