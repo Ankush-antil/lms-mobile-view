@@ -13,7 +13,19 @@ const messageSchema = new mongoose.Schema({
     },
     text: {
         type: String,
-        required: true
+        default: ''
+    },
+    fileUrl: {
+        type: String,
+        default: ''
+    },
+    fileName: {
+        type: String,
+        default: ''
+    },
+    fileType: {
+        type: String,
+        default: ''
     },
     isRead: {
         type: Boolean,
@@ -24,10 +36,31 @@ const messageSchema = new mongoose.Schema({
         default: false
     },
     originalText: {
-        type: String
+        type: String,
+        default: ''
+    },
+    inboxId: {
+        type: String,
+        default: ''
+    },
+    test: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Test'
+    },
+    testTitle: {
+        type: String,
+        default: ''
+    },
+    questionIndex: {
+        type: Number
+    },
+    questionText: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('Message', messageSchema);
+const Message = mongoose.model('Message', messageSchema);
+module.exports = Message;

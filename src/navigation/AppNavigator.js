@@ -17,6 +17,12 @@ import StudentTests from '../screens/student/StudentTests';
 import TakeTestScreen from '../screens/student/TakeTestScreen';
 import ViewTestResult from '../screens/student/ViewTestResult';
 import ContactTeacher from '../screens/student/ContactTeacher';
+import StudentPracticeTools from '../screens/student/StudentPracticeTools';
+import VoiceRecorderPage from '../screens/student/tools/VoiceRecorderPage';
+import VideoRecorderPage from '../screens/student/tools/VideoRecorderPage';
+import ScreenRecorderPage from '../screens/student/tools/ScreenRecorderPage';
+import ScreenshotToolPage from '../screens/student/tools/ScreenshotToolPage';
+import WebCallingPage from '../screens/student/tools/WebCallingPage';
 
 // Teacher
 import TeacherDashboard from '../screens/teacher/TeacherDashboard';
@@ -50,6 +56,12 @@ const StudentStack = () => (
         <Stack.Screen name="TakeTest" component={TakeTestScreen} />
         <Stack.Screen name="ViewTestResult" component={ViewTestResult} />
         <Stack.Screen name="ContactTeacher" component={ContactTeacher} />
+        <Stack.Screen name="StudentPracticeTools" component={StudentPracticeTools} />
+        <Stack.Screen name="VoiceRecorderPage" component={VoiceRecorderPage} />
+        <Stack.Screen name="VideoRecorderPage" component={VideoRecorderPage} />
+        <Stack.Screen name="ScreenRecorderPage" component={ScreenRecorderPage} />
+        <Stack.Screen name="ScreenshotToolPage" component={ScreenshotToolPage} />
+        <Stack.Screen name="WebCallingPage" component={WebCallingPage} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
 );

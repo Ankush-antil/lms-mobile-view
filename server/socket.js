@@ -16,11 +16,12 @@ const initSocket = (server) => {
         console.log(`[SOCKET] Socket connected: ${socket.id}`);
 
         // Register user
-        socket.on('register', ({ userId, role }) => {
+        socket.on('register', ({ userId, role, name }) => {
             if (userId) {
                 onlineUsers[userId] = socket.id;
                 socket.userId = userId;
                 socket.userRole = role;
+                socket.userName = name || '';
                 console.log(`[SOCKET] User registered: ${userId} (${role})`);
                 io.emit('online-status-update', Object.keys(onlineUsers));
             }
@@ -37,92 +38,6 @@ const initSocket = (server) => {
         socket.on('check-online', ({ targetId }, callback) => {
             const isOnline = !!onlineUsers[targetId];
             if (callback) callback({ isOnline });
-        });
-
-        // Real-time Chat Messaging
-        socket.on('send-message', async ({ receiverId, text }) => {
-            console.log(`[SOCKET] Message from ${socket.userId} to ${receiverId}: ${text}`);
-            if (!socket.userId) {
-                console.error('[SOCKET] Cannot send message: Sender not registered');
-                return;
-            }
-            try {
-                const Message = require('./models/Message');
-                const newMsg = await Message.create({
-                    sender: socket.userId,
-                    receiver: receiverId,
-                    text: text
-                });
-
-                const populatedMsg = await Message.findById(newMsg._id)
-                    .populate('sender', '_id name email role avatar')
-                    .populate('receiver', '_id name email role avatar');
-
-                // Broadcast to receiver if online
-                const receiverSocketId = onlineUsers[receiverId];
-                if (receiverSocketId) {
-                    console.log(`[SOCKET] Routing real-time message to online user ${receiverId}`);
-                    io.to(receiverSocketId).emit('new-message', populatedMsg);
-                }
-
-                // Acknowledge back to sender
-                socket.emit('message-sent', populatedMsg);
-            } catch (err) {
-                console.error('[SOCKET] Error processing send-message:', err);
-                socket.emit('message-send-error', { error: err.message });
-            }
-        });
-
-        // Edit Message
-        socket.on('edit-message', async ({ messageId, newText }) => {
-            console.log(`[SOCKET] Edit message request from ${socket.userId} for message ${messageId}: ${newText}`);
-            if (!socket.userId) {
-                console.error('[SOCKET] Cannot edit message: Sender not registered');
-                return;
-            }
-            try {
-                const Message = require('./models/Message');
-                const message = await Message.findById(messageId);
-
-                if (!message) {
-                    console.error('[SOCKET] Message not found');
-                    socket.emit('message-edit-error', { error: 'Message not found' });
-                    return;
-                }
-
-                // Verify ownership
-                if (message.sender.toString() !== socket.userId.toString()) {
-                    console.error('[SOCKET] Edit unauthorized');
-                    socket.emit('message-edit-error', { error: 'Unauthorized to edit this message' });
-                    return;
-                }
-
-                if (!message.isEdited) {
-                    message.originalText = message.text;
-                    message.isEdited = true;
-                }
-
-                message.text = newText;
-                await message.save();
-
-                const populatedMsg = await Message.findById(message._id)
-                    .populate('sender', '_id name email role avatar')
-                    .populate('receiver', '_id name email role avatar');
-
-                // Broadcast to receiver if online
-                const receiverId = message.receiver.toString();
-                const receiverSocketId = onlineUsers[receiverId];
-                if (receiverSocketId) {
-                    console.log(`[SOCKET] Routing message edit to receiver ${receiverId}`);
-                    io.to(receiverSocketId).emit('message-edited', populatedMsg);
-                }
-
-                // Acknowledge back to sender
-                socket.emit('message-edited', populatedMsg);
-            } catch (err) {
-                console.error('[SOCKET] Error processing edit-message:', err);
-                socket.emit('message-edit-error', { error: err.message });
-            }
         });
 
         // Start a call
@@ -242,6 +157,60 @@ const initSocket = (server) => {
             const targetSocketId = onlineUsers[targetId];
             if (targetSocketId) {
                 io.to(targetSocketId).emit('ice-candidate', { candidate });
+            }
+        });
+
+        // Chat Events
+        socket.on('send-message', (payload) => {
+            const { receiverId } = payload;
+            const receiverSocketId = onlineUsers[receiverId];
+            if (receiverSocketId) {
+                console.log(`[SOCKET] Forwarding message from ${socket.userId} to receiver ${receiverId}`);
+                io.to(receiverSocketId).emit('receive-message', {
+                    ...payload,
+                    sender: socket.userId,
+                    senderName: socket.userName || payload.senderName || '',
+                    receiver: receiverId
+                });
+            } else {
+                console.log(`[SOCKET] Receiver ${receiverId} is offline. Message saved to DB only.`);
+            }
+        });
+
+        socket.on('edit-message', ({ messageId, receiverId, text, isEdited, originalText }) => {
+            const receiverSocketId = onlineUsers[receiverId];
+            if (receiverSocketId) {
+                console.log(`[SOCKET] Forwarding message edit from ${socket.userId} to receiver ${receiverId}`);
+                io.to(receiverSocketId).emit('message-edited', {
+                    messageId,
+                    text,
+                    isEdited,
+                    originalText
+                });
+            }
+        });
+
+        socket.on('typing', (data) => {
+            const { targetId } = data || {};
+            const targetSocketId = onlineUsers[targetId];
+            if (targetSocketId) {
+                io.to(targetSocketId).emit('typing-status', {
+                    ...data,
+                    senderId: socket.userId,
+                    isTyping: true
+                });
+            }
+        });
+
+        socket.on('stop-typing', (data) => {
+            const { targetId } = data || {};
+            const targetSocketId = onlineUsers[targetId];
+            if (targetSocketId) {
+                io.to(targetSocketId).emit('typing-status', {
+                    ...data,
+                    senderId: socket.userId,
+                    isTyping: false
+                });
             }
         });
 

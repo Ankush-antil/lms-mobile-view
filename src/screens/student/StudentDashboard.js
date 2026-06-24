@@ -136,6 +136,24 @@ const StudentDashboard = ({ navigation }) => {
                     <Ionicons name="chevron-forward" size={20} color={colors.accent} />
                 </TouchableOpacity>
 
+                {/* Student Practice Tools Quick Banner */}
+                <TouchableOpacity
+                    style={[styles.chatBanner, { backgroundColor: '#ecfdf5', borderColor: '#d1fae5' }]}
+                    onPress={() => navigation.navigate('StudentPracticeTools')}
+                    activeOpacity={0.85}
+                >
+                    <View style={styles.chatBannerLeft}>
+                        <View style={[styles.chatIconCircle, { backgroundColor: colors.success }]}>
+                            <Ionicons name="construct" size={22} color={colors.white} />
+                        </View>
+                        <View>
+                            <Text style={styles.chatBannerTitle}>Practice Tools</Text>
+                            <Text style={styles.chatBannerSub}>Audio, Video, Screenshot, Calling Logs</Text>
+                        </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.success} />
+                </TouchableOpacity>
+
                 {/* Missed Calls */}
                 {missedCalls.length > 0 && (
                     <SectionCard style={styles.missedCallsCard}>

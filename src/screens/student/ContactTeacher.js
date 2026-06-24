@@ -12,13 +12,17 @@ import {
     Platform,
     ActivityIndicator,
     ScrollView,
-    Alert
+    Alert,
+    Image,
+    Linking
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { BASE_URL } from '../../config/api';
 
 const ContactTeacher = ({ navigation }) => {
     const { user } = useAuth();
@@ -41,8 +45,44 @@ const ContactTeacher = ({ navigation }) => {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const [editingMessage, setEditingMessage] = useState(null);
+    const [isPeerTyping, setIsPeerTyping] = useState(false);
+
+    // Search and attachment states
+    const [chatSearchQuery, setChatSearchQuery] = useState('');
+    const [chatSearchDate, setChatSearchDate] = useState('');
+    const [showChatSearch, setShowChatSearch] = useState(false);
+    const [attachedFile, setAttachedFile] = useState(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
 
     const chatScrollViewRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
+
+    const handleCloseChat = () => {
+        if (socket && socket.connected && activeContact) {
+            socket.emit('stop-typing', { targetId: activeContact._id });
+        }
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
+        setActiveContact(null);
+        setChatMessages([]);
+        setIsPeerTyping(false);
+    };
+
+    const handleTextChange = (text) => {
+        setChatInput(text);
+        if (socket && socket.connected && activeContact) {
+            socket.emit('typing', { targetId: activeContact._id });
+            
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            
+            typingTimeoutRef.current = setTimeout(() => {
+                socket.emit('stop-typing', { targetId: activeContact._id });
+            }, 1500);
+        }
+    };
 
     // Fetch teachers directory and recent conversations
     const fetchData = async () => {
@@ -68,7 +108,7 @@ const ContactTeacher = ({ navigation }) => {
     // Listen for real-time messages via socket
     useEffect(() => {
         if (socket) {
-            const handleNewMessage = (msg) => {
+            const handleReceiveMessage = (msg) => {
                 const isMsgFromActive = activeContact && 
                     (msg.sender?._id === activeContact._id || msg.sender === activeContact._id);
                 
@@ -82,39 +122,48 @@ const ContactTeacher = ({ navigation }) => {
                 }
             };
 
-            const handleMessageSent = (msg) => {
-                const isMsgForActive = activeContact && 
-                    (msg.receiver?._id === activeContact._id || msg.receiver === activeContact._id);
-                
-                if (isMsgForActive) {
-                    setChatMessages(prev => [...prev, msg]);
+            const handleMessageEdited = (data) => {
+                const { messageId, text, isEdited, originalText } = data;
+                setChatMessages(prev => prev.map(m => {
+                    if (m._id === messageId) {
+                        return {
+                            ...m,
+                            text,
+                            isEdited,
+                            originalText
+                        };
+                    }
+                    return m;
+                }));
+            };
+
+            const handleTypingStatus = (data) => {
+                const { senderId, isTyping } = data || {};
+                if (activeContact && senderId === activeContact._id) {
+                    setIsPeerTyping(isTyping);
                 }
             };
 
-            const handleMessageEdited = (msg) => {
-                const isMsgFromActive = activeContact && 
-                    (msg.sender?._id === activeContact._id || msg.sender === activeContact._id ||
-                     msg.receiver?._id === activeContact._id || msg.receiver === activeContact._id);
-                
-                if (isMsgFromActive) {
-                    setChatMessages(prev => prev.map(m => m._id === msg._id ? msg : m));
-                }
-            };
-
-            socket.on('new-message', handleNewMessage);
-            socket.on('message-sent', handleMessageSent);
+            socket.on('receive-message', handleReceiveMessage);
             socket.on('message-edited', handleMessageEdited);
+            socket.on('typing-status', handleTypingStatus);
 
             return () => {
-                socket.off('new-message', handleNewMessage);
-                socket.off('message-sent', handleMessageSent);
+                socket.off('receive-message', handleReceiveMessage);
                 socket.off('message-edited', handleMessageEdited);
+                socket.off('typing-status', handleTypingStatus);
             };
         }
     }, [socket, activeContact]);
 
     const openChat = async (contact) => {
         setActiveContact(contact);
+        setChatSearchQuery('');
+        setChatSearchDate('');
+        setShowChatSearch(false);
+        setAttachedFile(null);
+        setEditingMessage(null);
+        setIsPeerTyping(false);
         try {
             const historyRes = await axios.get(`/messages/${contact._id}`);
             setChatMessages(historyRes.data || []);
@@ -150,25 +199,143 @@ const ContactTeacher = ({ navigation }) => {
         );
     };
 
-    const handleSendMsg = () => {
-        if (!chatInput.trim() || !activeContact) return;
+    const handleSendMsg = async () => {
+        if (!chatInput.trim() && !attachedFile) return;
+        if (!activeContact) return;
         
+        const messageText = chatInput.trim();
+        const currentAttachment = attachedFile;
+        
+        setChatInput('');
+        setAttachedFile(null);
+        
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
         if (socket && socket.connected) {
+            socket.emit('stop-typing', { targetId: activeContact._id });
+        }
+        
+        try {
             if (editingMessage) {
-                socket.emit('edit-message', {
-                    messageId: editingMessage._id,
-                    newText: chatInput.trim()
-                });
+                // REST PUT request first
+                const { data } = await axios.put(`/messages/${editingMessage._id}`, { text: messageText });
+                
+                // Update local state
+                setChatMessages(prev => prev.map(m => m._id === editingMessage._id ? data : m));
+                
+                // Emit socket edit event to notify receiver
+                if (socket && socket.connected) {
+                    socket.emit('edit-message', {
+                        messageId: editingMessage._id,
+                        receiverId: activeContact._id,
+                        text: messageText,
+                        isEdited: true,
+                        originalText: editingMessage.originalText || editingMessage.text
+                    });
+                }
                 setEditingMessage(null);
             } else {
-                socket.emit('send-message', {
-                    receiverId: activeContact._id,
-                    text: chatInput.trim()
-                });
+                // REST POST request first
+                const payload = {
+                    receiver: activeContact._id,
+                    text: messageText
+                };
+                if (currentAttachment) {
+                    payload.fileUrl = currentAttachment.fileUrl;
+                    payload.fileName = currentAttachment.fileName;
+                    payload.fileType = currentAttachment.fileType;
+                }
+                
+                const { data } = await axios.post('/messages', payload);
+                
+                // Update local state
+                setChatMessages(prev => [...prev, data]);
+                
+                // Emit socket send event to notify receiver
+                if (socket && socket.connected) {
+                    socket.emit('send-message', {
+                        receiverId: activeContact._id,
+                        text: messageText,
+                        _id: data._id,
+                        createdAt: data.createdAt,
+                        sender: user._id,
+                        fileUrl: data.fileUrl,
+                        fileName: data.fileName,
+                        fileType: data.fileType
+                    });
+                }
             }
-            setChatInput('');
-        } else {
-            console.warn('[CHAT] Socket offline. Unable to send real-time message.');
+        } catch (error) {
+            console.error('[CHAT] Failed to send/edit message:', error);
+            Alert.alert('Error', 'Message could not be sent/updated');
+            if (!editingMessage && currentAttachment) {
+                setAttachedFile(currentAttachment);
+            }
+        }
+    };
+
+    const handlePickFile = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                copyToCacheDirectory: true
+            });
+            
+            if (result.canceled || !result.assets || result.assets.length === 0) {
+                return;
+            }
+            
+            const file = result.assets[0];
+            await handleUploadFile(file);
+        } catch (e) {
+            console.warn('[UPLOAD] Error picking file:', e);
+            Alert.alert('Error', 'Failed to pick file');
+        }
+    };
+
+    const handleUploadFile = async (file) => {
+        setUploadingFile(true);
+        try {
+            const formData = new FormData();
+            
+            const fileUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
+            
+            formData.append('file', {
+                uri: fileUri,
+                name: file.name || 'file',
+                type: file.mimeType || 'application/octet-stream'
+            });
+
+            const res = await axios.post('/messages/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            setAttachedFile(res.data);
+        } catch (e) {
+            console.error('[UPLOAD] Upload error:', e?.response?.data || e.message);
+            Alert.alert('Error', 'Failed to upload attachment');
+        } finally {
+            setUploadingFile(false);
+        }
+    };
+
+    const handleChatSearch = async (queryVal, dateVal) => {
+        if (!activeContact) return;
+        try {
+            let url = `/messages/${activeContact._id}?limitDays=20`;
+            if (queryVal) {
+                url += `&search=${encodeURIComponent(queryVal)}`;
+            }
+            if (dateVal) {
+                url += `&date=${dateVal}`;
+            }
+            const res = await axios.get(url);
+            setChatMessages(res.data || []);
+        } catch (e) {
+            console.error('[CHAT] Search error:', e);
         }
     };
 
@@ -310,10 +477,7 @@ const ContactTeacher = ({ navigation }) => {
                     visible={true}
                     animationType="slide"
                     transparent={false}
-                    onRequestClose={() => {
-                        setActiveContact(null);
-                        setChatMessages([]);
-                    }}
+                    onRequestClose={handleCloseChat}
                 >
                     <KeyboardAvoidingView 
                         style={styles.chatContainer} 
@@ -322,10 +486,7 @@ const ContactTeacher = ({ navigation }) => {
                         {/* Chat Header */}
                         <View style={styles.chatHeader}>
                             <TouchableOpacity 
-                                onPress={() => {
-                                    setActiveContact(null);
-                                    setChatMessages([]);
-                                }} 
+                                onPress={handleCloseChat} 
                                 activeOpacity={0.7}
                                 style={styles.backBtn}
                             >
@@ -343,6 +504,13 @@ const ContactTeacher = ({ navigation }) => {
 
                             <View style={styles.chatHeaderActions}>
                                 <TouchableOpacity 
+                                    onPress={() => setShowChatSearch(prev => !prev)}
+                                    style={styles.chatHeaderActionBtn}
+                                    activeOpacity={0.75}
+                                >
+                                    <Ionicons name="search-outline" size={21} color={showChatSearch ? colors.accent : colors.textSecondary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
                                     onPress={showCallingComingSoon}
                                     style={styles.chatHeaderActionBtn}
                                     activeOpacity={0.75}
@@ -359,6 +527,50 @@ const ContactTeacher = ({ navigation }) => {
                             </View>
                         </View>
 
+                        {/* Search Filter Panel */}
+                        {showChatSearch && (
+                            <View style={styles.searchFilterPanel}>
+                                <View style={styles.searchFilterRow}>
+                                    <Ionicons name="search-outline" size={16} color={colors.textMuted} style={styles.searchFilterIcon} />
+                                    <TextInput
+                                        style={styles.searchFilterInput}
+                                        placeholder="Search messages..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={chatSearchQuery}
+                                        onChangeText={(val) => {
+                                            setChatSearchQuery(val);
+                                            handleChatSearch(val, chatSearchDate);
+                                        }}
+                                    />
+                                </View>
+                                <View style={[styles.searchFilterRow, { marginLeft: 8, flex: 0.8 }]}>
+                                    <Ionicons name="calendar-outline" size={16} color={colors.textMuted} style={styles.searchFilterIcon} />
+                                    <TextInput
+                                        style={styles.searchFilterInput}
+                                        placeholder="Date (YYYY-MM-DD)"
+                                        placeholderTextColor={colors.textMuted}
+                                        value={chatSearchDate}
+                                        onChangeText={(val) => {
+                                            setChatSearchDate(val);
+                                            handleChatSearch(chatSearchQuery, val);
+                                        }}
+                                    />
+                                </View>
+                                {(chatSearchQuery || chatSearchDate) ? (
+                                    <TouchableOpacity 
+                                        onPress={() => {
+                                            setChatSearchQuery('');
+                                            setChatSearchDate('');
+                                            handleChatSearch('', '');
+                                        }}
+                                        style={styles.clearSearchBtn}
+                                    >
+                                        <Text style={styles.clearSearchText}>Clear</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                            </View>
+                        )}
+
                         {/* Messages Area */}
                         <ScrollView
                             ref={chatScrollViewRef}
@@ -369,8 +581,12 @@ const ContactTeacher = ({ navigation }) => {
                             {chatMessages.length === 0 ? (
                                 <View style={styles.emptyChat}>
                                     <Ionicons name="chatbubble-ellipses-outline" size={48} color={colors.textMuted} />
-                                    <Text style={styles.emptyChatText}>No messages yet</Text>
-                                    <Text style={styles.emptyChatSub}>Send a message to start conversing</Text>
+                                    <Text style={styles.emptyChatText}>
+                                        {(chatSearchQuery || chatSearchDate) ? "No messages found" : "No messages yet"}
+                                    </Text>
+                                    <Text style={styles.emptyChatSub}>
+                                        {(chatSearchQuery || chatSearchDate) ? "Try clearing search filters" : "Send a message to start conversing"}
+                                    </Text>
                                 </View>
                             ) : (
                                 chatMessages.map((msg, index) => {
@@ -402,9 +618,63 @@ const ContactTeacher = ({ navigation }) => {
                                                     isSelf ? styles.msgBubbleSelf : styles.msgBubblePeer
                                                 ]}
                                             >
-                                                <Text style={isSelf ? styles.msgTextSelf : styles.msgTextPeer}>
-                                                    {msg.text}
-                                                </Text>
+                                                {msg.fileUrl ? (
+                                                    <View style={styles.attachmentContainer}>
+                                                        {msg.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileUrl) ? (
+                                                            <TouchableOpacity 
+                                                                onPress={() => {
+                                                                    const url = msg.fileUrl.startsWith('http') ? msg.fileUrl : `${BASE_URL}${msg.fileUrl}`;
+                                                                    Linking.openURL(url).catch(err => console.error("Couldn't open URL", err));
+                                                                }}
+                                                                activeOpacity={0.8}
+                                                            >
+                                                                <Image 
+                                                                    source={{ uri: msg.fileUrl.startsWith('http') ? msg.fileUrl : `${BASE_URL}${msg.fileUrl}` }} 
+                                                                    style={styles.attachmentImage} 
+                                                                    resizeMode="cover"
+                                                                />
+                                                            </TouchableOpacity>
+                                                        ) : (
+                                                            <TouchableOpacity 
+                                                                style={[
+                                                                    styles.fileCard, 
+                                                                    isSelf ? styles.fileCardSelf : styles.fileCardPeer
+                                                                ]}
+                                                                onPress={() => {
+                                                                    const url = msg.fileUrl.startsWith('http') ? msg.fileUrl : `${BASE_URL}${msg.fileUrl}`;
+                                                                    Linking.openURL(url).catch(err => console.error("Couldn't open URL", err));
+                                                                }}
+                                                                activeOpacity={0.7}
+                                                            >
+                                                                <Ionicons 
+                                                                    name="document-attach" 
+                                                                    size={24} 
+                                                                    color={isSelf ? '#1e293b' : colors.white} 
+                                                                />
+                                                                <View style={styles.fileCardInfo}>
+                                                                    <Text 
+                                                                        style={[
+                                                                            styles.fileNameText, 
+                                                                            isSelf ? styles.fileNameTextSelf : styles.fileNameTextPeer
+                                                                        ]}
+                                                                        numberOfLines={1}
+                                                                    >
+                                                                        {msg.fileName || 'Attached File'}
+                                                                    </Text>
+                                                                    <Text style={[
+                                                                        styles.fileSizeText,
+                                                                        isSelf ? { color: colors.textMuted } : { color: 'rgba(255,255,255,0.6)' }
+                                                                    ]}>Tap to open</Text>
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                ) : null}
+                                                {msg.text ? (
+                                                    <Text style={isSelf ? styles.msgTextSelf : styles.msgTextPeer}>
+                                                        {msg.text}
+                                                    </Text>
+                                                ) : null}
                                                 {msg.isEdited && (
                                                     <View style={styles.editedIndicatorRow}>
                                                         <Text style={[styles.editedLabel, isSelf ? styles.editedLabelSelf : styles.editedLabelPeer]}>
@@ -431,6 +701,16 @@ const ContactTeacher = ({ navigation }) => {
                                     );
                                 })
                             )}
+                            {isPeerTyping && (
+                                <View style={styles.typingRow}>
+                                    <View style={[styles.msgSmallAvatar, { backgroundColor: colors.teacher, marginRight: 8 }]}>
+                                        <Text style={styles.msgSmallAvatarText}>{activeContact.name[0]?.toUpperCase()}</Text>
+                                    </View>
+                                    <View style={styles.typingBubble}>
+                                        <Text style={styles.typingText}>● ● ●</Text>
+                                    </View>
+                                </View>
+                            )}
                         </ScrollView>
 
                         {/* Editing Banner */}
@@ -455,10 +735,39 @@ const ContactTeacher = ({ navigation }) => {
                             </View>
                         )}
 
+                        {/* Attachment Preview Banner if file selected */}
+                        {attachedFile && (
+                            <View style={styles.attachmentPreviewBanner}>
+                                <Ionicons name="document-attach" size={18} color={colors.accent} style={{ marginRight: 6 }} />
+                                <Text style={styles.attachmentPreviewText} numberOfLines={1}>
+                                    Attachment: {attachedFile.fileName}
+                                </Text>
+                                <TouchableOpacity 
+                                    onPress={() => setAttachedFile(null)}
+                                    style={styles.cancelAttachmentBtn}
+                                >
+                                    <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {/* Uploading Loading Banner */}
+                        {uploadingFile && (
+                            <View style={styles.attachmentPreviewBanner}>
+                                <ActivityIndicator size="small" color={colors.accent} style={{ marginRight: 6 }} />
+                                <Text style={styles.attachmentPreviewText}>Uploading attachment...</Text>
+                            </View>
+                        )}
+
                         {/* Input Bar */}
                         <View style={styles.chatInputBar}>
-                            <TouchableOpacity activeOpacity={0.7} style={styles.inputLeftIcon}>
-                                <Ionicons name="happy-outline" size={24} color={colors.textMuted} />
+                            <TouchableOpacity 
+                                activeOpacity={0.7} 
+                                style={styles.inputLeftIcon}
+                                onPress={handlePickFile}
+                                disabled={uploadingFile}
+                            >
+                                <Ionicons name="attach-outline" size={26} color={colors.textMuted} />
                             </TouchableOpacity>
 
                             <TextInput
@@ -466,11 +775,11 @@ const ContactTeacher = ({ navigation }) => {
                                 placeholder="Type something"
                                 placeholderTextColor={colors.textMuted}
                                 value={chatInput}
-                                onChangeText={setChatInput}
+                                onChangeText={handleTextChange}
                                 multiline
                             />
 
-                            {chatInput.trim().length > 0 ? (
+                            {(chatInput.trim().length > 0 || attachedFile) ? (
                                 <TouchableOpacity 
                                     onPress={handleSendMsg} 
                                     style={styles.sendBtn}
@@ -478,11 +787,7 @@ const ContactTeacher = ({ navigation }) => {
                                 >
                                     <Ionicons name="send" size={18} color={colors.white} />
                                 </TouchableOpacity>
-                            ) : (
-                                <TouchableOpacity activeOpacity={0.7} style={styles.inputRightIcon}>
-                                    <Ionicons name="attach-outline" size={26} color={colors.textMuted} />
-                                </TouchableOpacity>
-                            )}
+                            ) : null}
                         </View>
                     </KeyboardAvoidingView>
                 </Modal>
@@ -851,6 +1156,125 @@ const styles = StyleSheet.create({
         borderTopWidth: 0.5,
         borderTopColor: '#cbd5e1',
         paddingTop: 4,
+    },
+    searchFilterPanel: {
+        flexDirection: 'row',
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+        alignItems: 'center',
+    },
+    searchFilterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.white,
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        height: 36,
+        flex: 1,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    searchFilterIcon: {
+        marginRight: 4,
+    },
+    searchFilterInput: {
+        flex: 1,
+        fontSize: 12,
+        color: colors.text,
+        paddingVertical: 4,
+    },
+    clearSearchBtn: {
+        marginLeft: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        backgroundColor: '#fee2e2',
+        borderRadius: 6,
+    },
+    clearSearchText: {
+        color: colors.danger,
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    attachmentContainer: {
+        marginBottom: 6,
+        borderRadius: 8,
+        overflow: 'hidden',
+    },
+    attachmentImage: {
+        width: 200,
+        height: 150,
+        borderRadius: 8,
+    },
+    fileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 8,
+        borderRadius: 8,
+        width: 200,
+        gap: 8,
+    },
+    fileCardSelf: {
+        backgroundColor: '#f1f5f9',
+    },
+    fileCardPeer: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    fileCardInfo: {
+        flex: 1,
+    },
+    fileNameText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    fileNameTextSelf: {
+        color: '#1e293b',
+    },
+    fileNameTextPeer: {
+        color: colors.white,
+    },
+    fileSizeText: {
+        fontSize: 10,
+        marginTop: 2,
+    },
+    attachmentPreviewBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#e2e8f0',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+    },
+    attachmentPreviewText: {
+        flex: 1,
+        fontSize: 12,
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    cancelAttachmentBtn: {
+        padding: 2,
+    },
+    typingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 6,
+        alignSelf: 'flex-start',
+    },
+    typingBubble: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 18,
+        backgroundColor: '#e2e8f0',
+        borderBottomLeftRadius: 4,
+    },
+    typingText: {
+        color: '#64748b',
+        fontSize: fontSizes.xs,
+        fontWeight: 'bold',
+        letterSpacing: 2,
     },
 });
 
