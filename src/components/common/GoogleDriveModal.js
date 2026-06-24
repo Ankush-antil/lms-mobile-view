@@ -18,7 +18,7 @@ import { colors, spacing, fontSizes, borderRadius } from '../../theme/colors';
 
 // WEB_CLIENT_ID configuration (required for Android Google Sign-In backend verification)
 // IMPORTANT: Replace this with your Google Cloud Console "Web application" Client ID if you get DEVELOPER_ERROR (code 10).
-const WEB_CLIENT_ID = '1091703484552-3on2k6u7dlupdhdsejj71dqlkmard2cq.apps.googleusercontent.com';
+const WEB_CLIENT_ID = '1091703484552-ogtcuj2470cnoh22bvke65ul96a0n5hc.apps.googleusercontent.com';
 
 // Configure Google Sign-In SDK
 GoogleSignin.configure({
