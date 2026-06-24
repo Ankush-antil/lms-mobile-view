@@ -32,9 +32,8 @@
         "android.permission.ACCESS_NETWORK_STATE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#0b1329",
+        "backgroundColor": "#ffb300",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
