@@ -27,12 +27,7 @@ const ScreenRecorderPage = ({ route, navigation }) => {
 
     const playVideo = async (url) => {
         try {
-            const supported = await Linking.canOpenURL(url);
-            if (supported) {
-                await Linking.openURL(url);
-            } else {
-                Alert.alert("Error", "Cannot open video player for this file.");
-            }
+            await Linking.openURL(url);
         } catch (err) {
             console.error("Failed to play video:", err);
             Alert.alert("Error", "Could not open video player.");
